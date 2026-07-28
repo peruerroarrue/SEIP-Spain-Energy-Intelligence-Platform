@@ -1,0 +1,25 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "seip"
+version = "0.1.0"
+description = "Spain Energy Intelligence Platform — ingesta batch/streaming, lakehouse Medallion y forecasting de precio horario para el sistema eléctrico español"
+readme = "README.md"
+requires-python = ">=3.10"
+dependencies = [
+    "requests>=2.31",
+]
+
+[project.optional-dependencies]
+streaming = ["confluent-kafka>=2.3"]
+spark = ["pyspark>=3.5"]
+ml = ["mlflow>=2.10", "lightgbm>=4.3", "scikit-learn>=1.4", "pandas>=2.2"]
+dev = ["pytest>=8.0", "pytest-cov>=5.0", "requests-mock>=1.12", "ruff>=0.4"]
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
