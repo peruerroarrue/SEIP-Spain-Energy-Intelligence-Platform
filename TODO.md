@@ -9,7 +9,10 @@ Lista viva de lo que falta por implementar o por verificar contra sistemas reale
 - [ ] `esios_client.py` — leer `api_key` desde variable de entorno en vez de solo parámetro explícito
 - [ ] `esios_client.py` — helper de paginación para backfill histórico largo (Regla 3: paginar por mes/año, pausa de cortesía 1-1.5s)
 - [ ] `redata_client.py` — no empezado. Necesario para el job batch (generación por fuente, balance eléctrico), no para el producer Kafka
-- [ ] `kafka_producer.py` — no empezado (Fase 2). Decidir Kafka local Docker vs Confluent Cloud antes de escribirlo
+- [x] `kafka_producer.py` — hecho (Fase 2). JSON plano (decisión documentada, ver DECISIONS.md), ventana con solapamiento + dedup delegado a Silver, config Kafka local Docker vs Confluent Cloud vía variables de entorno
+- [x] `kafka_producer.py` — probado end-to-end contra ESIOS real + Kafka local en Docker (`scripts/smoke_kafka_producer.py`): 1 tick, 4 topics, mensajes consumidos de vuelta correctamente
+- [ ] `kafka_producer.py` — pendiente: soak test de 48h sin caídas (criterio de aceptación Fase 2), todavía no ejecutado
+- [ ] `kafka_producer.py` — pendiente: probar configuración contra Confluent Cloud real (de momento solo Docker local)
 - [ ] `batch_job.py` — no empezado
 
 ## Transform
