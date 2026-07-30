@@ -16,3 +16,10 @@ Registro breve de decisiones no triviales y su motivo, para sostener la memoria 
 - **Un solo proceso con un loop de 5 min** (la granularidad más fina, eólica/solar) en vez de 4 procesos o un scheduler dedicado — cada indicador se publica solo cuando su intervalo nativo lo exige (PVPC cada hora, SPOT cada 15 min).
 - Hallazgo de la prueba real: la API de ESIOS **sí acepta `start_date`/`end_date` con hora** (no solo fecha), lo cual no estaba confirmado — sin esto la ventana de polling habría tenido que traer el día completo en cada tick.
 - Verificado end-to-end contra ESIOS real + Kafka local (`scripts/smoke_kafka_producer.py`): un tick produce y se puede consumir correctamente en los 4 topics. Pendiente: soak test de 48h (criterio de aceptación de la Fase 2) y prueba contra Confluent Cloud real.
+
+## 2026-07-30 — REData client
+
+- Mismo patrón que `esios_client.py` (retry/backoff, tests con mocks + smoke test real), pero sin filtro de `geo_id` — REData no mezcla países en la misma respuesta como sí hace ESIOS con el indicador SPOT.
+- Parser dedicado para la forma anidada de `balance-electrico` (`attributes.content[].attributes.values` en vez de `attributes.values` directo) — verificado contra datos reales (41 valores, múltiples títulos).
+- `intercambios` se deja como endpoint no crítico: se probó contra la API real y falló tras 3 reintentos (500/503), tal y como el spec advertía. No se trata como error bloqueante en el diseño del futuro `batch_job.py`.
+- No se ha extraído la lógica de retry compartida entre `esios_client.py` y `redata_client.py` (queda algo duplicada) — se revisará si aparece un tercer cliente con la misma necesidad; no se ha hecho ahora para no refactorizar código ya mergeado sin necesidad concreta.
