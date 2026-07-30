@@ -1,13 +1,16 @@
 """Bronze -> Silver transformations.
 
-Two independent pipelines live here, one per Bronze source — kept in the same
-file per the repo's planned structure, but with `_esios`/`_redata` suffixes
-throughout so the two don't get confused:
+Three independent pipelines live here — kept in the same file per the repo's
+planned structure, but named distinctly so they don't get confused:
 
   - ESIOS streaming (PVPC, SPOT, wind, solar): `run_esios`. Bronze is read as
     a genuine Spark Structured Streaming source with a 2h watermark, because
     that data can arrive with duplicates/late records by design (see
     kafka_producer's overlapping fetch windows).
+  - ESIOS hourly join: `run_esios_hourly_join`. Reads run_esios's already
+    deduplicated output (not raw Bronze) and averages each series down to
+    hourly grain, joining PVPC/SPOT/eolica/solar into one wide table — a
+    plain batch step, no streaming/watermarking concern of its own.
   - REData batch (generación, balance, renovable/no-renovable): `run_redata`.
     This source is a scheduled batch job, not streaming, so there is no
     late-arrival concern — a plain batch read + dedup + overwrite is enough
@@ -183,6 +186,89 @@ def run_esios(spark: "SparkSession", bronze_path: str, silver_path: str, checkpo
     return query
 
 
+# --- ESIOS hourly join ------------------------------------------------------
+
+# Friendly column name per indicator for the joined hourly table.
+INDICATOR_COLUMN_NAMES = {
+    1001: "pvpc_eur_mwh",
+    600: "spot_eur_mwh",
+    551: "eolica_mw",
+    1295: "solar_mw",
+}
+
+
+def aggregate_records_to_hour(records: list[dict]) -> dict[tuple[int, datetime], float]:
+    """Reference (non-Spark) implementation: average value per (indicator_id, hour).
+
+    PVPC is already hourly (averaging a single reading is a no-op); SPOT
+    (15min) and eolica/solar (5min) get genuinely averaged down to the hour.
+    Documents the exact semantics that aggregate_esios_silver_to_hour must
+    replicate in Spark.
+    """
+    sums: dict[tuple[int, datetime], float] = {}
+    counts: dict[tuple[int, datetime], int] = {}
+    for record in records:
+        hour = record["datetime_utc"].replace(minute=0, second=0, microsecond=0)
+        key = (record["indicator_id"], hour)
+        sums[key] = sums.get(key, 0.0) + record["value"]
+        counts[key] = counts.get(key, 0) + 1
+    return {key: sums[key] / counts[key] for key in sums}
+
+
+def pivot_hourly_records(hourly_averages: dict[tuple[int, datetime], float]) -> dict[datetime, dict[str, float | None]]:
+    """Reference pivot: one row per hour, one column per indicator's friendly name.
+
+    An hour missing a given indicator's data gets `None` for that column
+    rather than being dropped — Silver keeps partial data rather than hiding
+    gaps, same philosophy as the validation flags above.
+    """
+    hours = sorted({hour for _, hour in hourly_averages})
+    return {
+        hour: {
+            col_name: hourly_averages.get((indicator_id, hour))
+            for indicator_id, col_name in INDICATOR_COLUMN_NAMES.items()
+        }
+        for hour in hours
+    }
+
+
+def aggregate_esios_silver_to_hour(silver_df: "DataFrame") -> "DataFrame":
+    """Spark-native equivalent of aggregate_records_to_hour."""
+    from pyspark.sql import functions as F
+
+    return (
+        silver_df.withColumn("hour_utc", F.date_trunc("hour", F.col("datetime_utc")))
+        .groupBy("indicator_id", "hour_utc")
+        .agg(F.avg("value").alias("value"))
+    )
+
+
+def pivot_hourly_indicators(hourly_df: "DataFrame") -> "DataFrame":
+    """Spark-native equivalent of pivot_hourly_records: one wide row per hour."""
+    from pyspark.sql import functions as F
+
+    pivoted = hourly_df.groupBy("hour_utc").pivot("indicator_id", list(INDICATOR_COLUMN_NAMES.keys())).agg(
+        F.first("value")
+    )
+    for indicator_id, col_name in INDICATOR_COLUMN_NAMES.items():
+        pivoted = pivoted.withColumnRenamed(str(indicator_id), col_name)
+    return pivoted.orderBy("hour_utc")
+
+
+def run_esios_hourly_join(spark: "SparkSession", silver_path: str, output_path: str) -> "DataFrame":
+    """Join PVPC/SPOT/eolica/solar into one hourly-grain table.
+
+    Reads the already-deduplicated ESIOS Silver table (not raw Bronze) and
+    recomputes the join as a plain batch overwrite — no Structured
+    Streaming/watermarking needed here, that concern was already resolved by
+    run_esios upstream.
+    """
+    silver_df = spark.read.format("delta").load(silver_path)
+    joined_df = pivot_hourly_indicators(aggregate_esios_silver_to_hour(silver_df))
+    joined_df.write.format("delta").mode("overwrite").save(output_path)
+    return joined_df
+
+
 # --- REData batch -----------------------------------------------------------
 
 
@@ -258,7 +344,9 @@ if __name__ == "__main__":
             silver_path="data/silver/esios",
             checkpoint_path="data/checkpoints/esios_silver",
         )
+    elif target == "esios_hourly_join":
+        run_esios_hourly_join(spark_session, silver_path="data/silver/esios", output_path="data/silver/esios_hourly")
     elif target == "redata":
         run_redata(spark_session, bronze_path="data/bronze/redata", silver_path="data/silver/redata")
     else:
-        raise SystemExit(f"unknown target {target!r} (expected 'esios' or 'redata')")
+        raise SystemExit(f"unknown target {target!r} (expected 'esios', 'esios_hourly_join' or 'redata')")
