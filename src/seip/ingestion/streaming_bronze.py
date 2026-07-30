@@ -27,19 +27,22 @@ def topics() -> list[str]:
     return [indicator.topic for indicator in INDICATORS]
 
 
-def to_bronze_row(topic: str, value: bytes, kafka_timestamp: datetime) -> dict:
+def to_bronze_row(topic: str, value: bytes, kafka_timestamp_epoch: float) -> dict:
     """Wrap one raw Kafka record as a Bronze row, in the same schema-on-read
     style as batch_job.to_bronze_rows: the message payload is kept untouched,
     typing/casting is a Silver responsibility.
 
-    Spark's Kafka source `timestamp` column comes back as a naive datetime —
-    it is only correct UTC because spark_session.build_local_spark_session
-    (and, on Databricks, the cluster) sets spark.sql.session.timeZone=UTC.
-    Attach that UTC tzinfo explicitly here so fetched_at matches the
-    timezone-aware format batch_job.to_bronze_rows already produces.
+    Takes the Kafka record timestamp as a Unix epoch (seconds), not a
+    collected Spark datetime. Confirmed experimentally on this machine:
+    PySpark's `.collect()` converts TimestampType columns to Python datetimes
+    using the JVM's local default timezone, completely ignoring
+    `spark.sql.session.timeZone` — a naive datetime collected that way was
+    off by the local UTC offset (+2h under CEST). Casting to an epoch in
+    Spark *before* collecting sidesteps this: an epoch is timezone-agnostic,
+    so `datetime.fromtimestamp(epoch, tz=timezone.utc)` reconstructs the
+    correct instant unambiguously. See _process_batch for the Spark-side cast.
     """
-    if kafka_timestamp.tzinfo is None:
-        kafka_timestamp = kafka_timestamp.replace(tzinfo=timezone.utc)
+    kafka_timestamp = datetime.fromtimestamp(kafka_timestamp_epoch, tz=timezone.utc)
     return {
         "ingestion_date": kafka_timestamp.date().isoformat(),
         "source": topic,
@@ -49,9 +52,13 @@ def to_bronze_row(topic: str, value: bytes, kafka_timestamp: datetime) -> dict:
 
 
 def _process_batch(batch_df: "DataFrame", batch_id: int, bronze_path: str) -> None:
+    from pyspark.sql import functions as F
+
     rows = [
-        to_bronze_row(row.topic, row.value, row.timestamp)
-        for row in batch_df.select("topic", "value", "timestamp").collect()
+        to_bronze_row(row.topic, row.value, row.timestamp_epoch)
+        for row in batch_df.select(
+            "topic", "value", F.col("timestamp").cast("double").alias("timestamp_epoch")
+        ).collect()
     ]
     if not rows:
         return
