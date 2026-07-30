@@ -1,8 +1,7 @@
 """Daily batch ingestion of REData series into Bronze.
 
 Planning/fetch/normalization logic has no Spark import, so it stays fast to
-unit test. Only `run` and `_build_local_spark_session` (used by the manual
-smoke test) touch PySpark/Delta Lake.
+unit test. Only `run` touches PySpark/Delta Lake.
 
 Bronze keeps each record as a raw JSON string (schema-on-read) plus ingestion
 metadata — typing/casting into real columns is a Silver responsibility, not
@@ -95,18 +94,6 @@ def to_bronze_rows(records: list[dict], run_date: date, fetched_at: datetime | N
     ]
 
 
-def _build_local_spark_session() -> "SparkSession":
-    from delta import configure_spark_with_delta_pip
-    from pyspark.sql import SparkSession
-
-    builder = (
-        SparkSession.builder.appName("seip-batch-job")
-        .config("spark.sql.extensions", "io.delta.sql.DeltaSparkSessionExtension")
-        .config("spark.sql.catalog.spark_catalog", "org.apache.spark.sql.delta.catalog.DeltaCatalog")
-    )
-    return configure_spark_with_delta_pip(builder).getOrCreate()
-
-
 def run(spark: "SparkSession", run_date: date, bronze_path: str) -> "DataFrame":
     """Fetch one day of REData series and append it to the Bronze Delta table."""
     tasks = build_tasks()
@@ -121,7 +108,9 @@ def run(spark: "SparkSession", run_date: date, bronze_path: str) -> "DataFrame":
 if __name__ == "__main__":
     import sys
 
+    from seip.ingestion.spark_session import build_local_spark_session
+
     logging.basicConfig(level=logging.INFO)
     target_date = date.fromisoformat(sys.argv[1]) if len(sys.argv) > 1 else date.today() - timedelta(days=1)
-    spark_session = _build_local_spark_session()
+    spark_session = build_local_spark_session("seip-batch-job")
     run(spark_session, target_date, bronze_path="data/bronze/redata")

@@ -17,6 +17,9 @@ Lista viva de lo que falta por implementar o por verificar contra sistemas reale
 - [ ] `kafka_producer.py` — pendiente: probar configuración contra Confluent Cloud real (de momento solo Docker local)
 - [x] `batch_job.py` — hecho: `build_tasks`/`fetch_all`/`to_bronze_rows` (lógica pura) + `run` (Spark/Delta), `intercambios` no crítico
 - [x] `batch_job.py` — probado end-to-end con PySpark local + Delta Lake (`scripts/smoke_batch_job.py`): 75 filas escritas y releídas correctamente, particionado por `ingestion_date`. Requiere JDK 11 en esta máquina (ver DECISIONS.md — JDK 17/21 fallan por un bug de sockets AF_UNIX)
+- [x] `streaming_bronze.py` — hecho: consume los 4 topics ESIOS con Spark Structured Streaming (`availableNow`), aterriza en `data/bronze/esios` con el mismo esquema que el batch (`ingestion_date`/`source`/`fetched_at`/`raw_json`)
+- [x] `streaming_bronze.py` — probado end-to-end con Kafka local + PySpark (`scripts/smoke_streaming_bronze.py`): 25 filas correctas en los 4 topics. Encontrado y corregido: `fetched_at` salía sin zona horaria (naive) porque Spark usaba el timezone por defecto de la JVM — fijado `spark.sql.session.timeZone=UTC` en la sesión local
+- [ ] `streaming_bronze.py` — pendiente: probar con trigger continuo (no solo `availableNow`) si se quiere algo más "tiempo real" para la demo
 
 ## Transform
 

@@ -12,7 +12,8 @@ from __future__ import annotations
 import sys
 from datetime import date, timedelta
 
-from seip.ingestion.batch_job import _build_local_spark_session, run
+from seip.ingestion.batch_job import run
+from seip.ingestion.spark_session import build_local_spark_session
 
 BRONZE_PATH = "data/bronze/redata"
 
@@ -20,7 +21,7 @@ BRONZE_PATH = "data/bronze/redata"
 def main() -> None:
     target_date = date.fromisoformat(sys.argv[1]) if len(sys.argv) > 1 else date.today() - timedelta(days=1)
 
-    spark = _build_local_spark_session()
+    spark = build_local_spark_session("seip-batch-job")
     spark.sparkContext.setLogLevel("ERROR")
 
     print(f"-- running batch job for {target_date} --")
