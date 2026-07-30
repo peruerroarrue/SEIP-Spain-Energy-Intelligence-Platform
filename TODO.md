@@ -15,7 +15,8 @@ Lista viva de lo que falta por implementar o por verificar contra sistemas reale
 - [x] `kafka_producer.py` — probado end-to-end contra ESIOS real + Kafka local en Docker (`scripts/smoke_kafka_producer.py`): 1 tick, 4 topics, mensajes consumidos de vuelta correctamente
 - [ ] `kafka_producer.py` — pendiente: soak test de 48h sin caídas (criterio de aceptación Fase 2), todavía no ejecutado
 - [ ] `kafka_producer.py` — pendiente: probar configuración contra Confluent Cloud real (de momento solo Docker local)
-- [ ] `batch_job.py` — no empezado
+- [x] `batch_job.py` — hecho: `build_tasks`/`fetch_all`/`to_bronze_rows` (lógica pura) + `run` (Spark/Delta), `intercambios` no crítico
+- [x] `batch_job.py` — probado end-to-end con PySpark local + Delta Lake (`scripts/smoke_batch_job.py`): 75 filas escritas y releídas correctamente, particionado por `ingestion_date`. Requiere JDK 11 en esta máquina (ver DECISIONS.md — JDK 17/21 fallan por un bug de sockets AF_UNIX)
 
 ## Transform
 
@@ -40,6 +41,7 @@ Lista viva de lo que falta por implementar o por verificar contra sistemas reale
 - [ ] Decisión Unity Catalog vs Hive Metastore — pendiente de probar en el workspace de Databricks
 - [ ] Confluent Cloud vs Kafka local — configurar y documentar en DECISIONS.md
 - [ ] Verificar que el wheel se instala limpio en un entorno nuevo (criterio de aceptación Fase 5)
+- [x] PySpark local funcionando en esta máquina: usar JAVA_HOME=`C:\java-tools\jdk-11.0.32+9` (JDK 17/21 del sistema fallan, ver DECISIONS.md)
 
 ## Documentación / entrega
 

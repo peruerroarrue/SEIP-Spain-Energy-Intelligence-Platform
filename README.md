@@ -23,3 +23,11 @@ pytest
 ```
 
 Grupos opcionales de dependencias (`streaming`, `spark`, `ml`) se instalan solo cuando se necesitan, para mantener el entorno de tests de lógica de negocio ligero.
+
+### PySpark local en Windows
+
+Para correr los scripts que usan PySpark local (`scripts/smoke_batch_job.py` y futuros de Bronze/Silver/Gold), esta máquina necesita **JDK 11** — el JDK 17/21 instalado en el sistema falla al lanzar la JVM de Spark (bug de sockets AF_UNIX, ver `DECISIONS.md` 2026-07-30). Antes de ejecutar:
+
+```powershell
+$env:JAVA_HOME = "C:\java-tools\jdk-11.0.32+9"
+```

@@ -23,6 +23,12 @@ htmlcov/
 .databricks/
 mlruns/
 
+# Local Spark/Delta output and metastore (smoke tests write here)
+data/
+spark-warehouse/
+metastore_db/
+derby.log
+
 # Notebooks checkpoints
 .ipynb_checkpoints/
 
