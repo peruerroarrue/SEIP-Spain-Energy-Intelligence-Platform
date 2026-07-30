@@ -18,7 +18,8 @@ Lista viva de lo que falta por implementar o por verificar contra sistemas reale
 - [x] `batch_job.py` — hecho: `build_tasks`/`fetch_all`/`to_bronze_rows` (lógica pura) + `run` (Spark/Delta), `intercambios` no crítico
 - [x] `batch_job.py` — probado end-to-end con PySpark local + Delta Lake (`scripts/smoke_batch_job.py`): 75 filas escritas y releídas correctamente, particionado por `ingestion_date`. Requiere JDK 11 en esta máquina (ver DECISIONS.md — JDK 17/21 fallan por un bug de sockets AF_UNIX)
 - [x] `streaming_bronze.py` — hecho: consume los 4 topics ESIOS con Spark Structured Streaming (`availableNow`), aterriza en `data/bronze/esios` con el mismo esquema que el batch (`ingestion_date`/`source`/`fetched_at`/`raw_json`)
-- [x] `streaming_bronze.py` — probado end-to-end con Kafka local + PySpark (`scripts/smoke_streaming_bronze.py`): 25 filas correctas en los 4 topics. Encontrado y corregido: `fetched_at` salía sin zona horaria (naive) porque Spark usaba el timezone por defecto de la JVM — fijado `spark.sql.session.timeZone=UTC` en la sesión local
+- [x] `streaming_bronze.py` — probado end-to-end con Kafka local + PySpark (`scripts/smoke_streaming_bronze.py`): 25 filas correctas en los 4 topics
+- [x] **Corrección importante:** el arreglo original de `fetched_at` (fijar `spark.sql.session.timeZone=UTC`) era incompleto — `.collect()` de un `TimestampType` en PySpark ignora esa config y usa la zona horaria local de la JVM. `fetched_at` llevaba hasta 2h de más. Arreglado castenado a epoch antes de recoger (ver DECISIONS.md). Regla general para todo el proyecto: nunca `.collect()` un `TimestampType` directamente
 - [ ] `streaming_bronze.py` — pendiente: probar con trigger continuo (no solo `availableNow`) si se quiere algo más "tiempo real" para la demo
 
 ## Transform
@@ -42,7 +43,9 @@ Lista viva de lo que falta por implementar o por verificar contra sistemas reale
 
 ## ML
 
-- [ ] `features.py`, `train.py`, `inference.py` — no empezados
+- [x] `features.py` — hecho: lags de PVPC (1h/24h/168h, vía join por timestamp desplazado, no `lag()` posicional — no se descoloca si hay huecos), variables cíclicas hora-del-día/día-de-la-semana (seno/coseno), mes del año. `% renovable` y demanda quedan pendientes (ver `silver_to_gold.py` de arriba)
+- [x] `features.py` — probado end-to-end (`scripts/smoke_features.py`), incluyendo un cross-check exacto Spark-vs-Python de las variables cíclicas ("all rows match exactly") — fue precisamente esta verificación la que sacó a la luz el bug de zona horaria de `streaming_bronze.py`
+- [ ] `train.py`, `inference.py` — no empezados
 
 ## Infraestructura / soporte
 
