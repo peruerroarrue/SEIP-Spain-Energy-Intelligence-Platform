@@ -25,8 +25,10 @@ Lista viva de lo que falta por implementar o por verificar contra sistemas reale
 
 - [x] `bronze_to_silver.py` — hecho, **solo para el Bronze streaming ESIOS** (PVPC/SPOT/eólica/solar): parseo+tipado nativo Spark, UTC, dedup por `(indicator_id, datetime_utc)` con watermark de 2h, validaciones de rango (precio 0-700€, solar nocturna >10MW) como flags, no como descarte
 - [x] `bronze_to_silver.py` — probado end-to-end (`scripts/smoke_bronze_to_silver.py`): parseo/tipado correcto contra datos reales, y **dedup verificado inyectando un duplicado real** (40 filas Bronze → 39 Silver, la fila superviviente queda marcada `value_out_of_range_0.0_700.0`). Nota: en una ejecución incremental, una fila añadida a Bronze por un proceso externo (no por los jobs habituales) no se recogió hasta limpiar el checkpoint y rehacer una pasada completa — rareza de estado incremental con escrituras fuera de los jobs normales, no debería reproducirse en el pipeline real (todo escrito por los mismos jobs programados)
-- [ ] `bronze_to_silver.py` — pendiente (PR aparte, según lo acordado): Silver para REData batch (generación/balance/renovable-no-renovable)
-- [ ] `bronze_to_silver.py` — pendiente (PR aparte): join temporal hora a hora entre PVPC/SPOT/eólica/solar
+- [x] `bronze_to_silver.py` — Silver para REData batch (generación/balance/renovable-no-renovable): `run_redata`, batch simple (no streaming, no hace falta watermark al no ser una fuente streaming), dedup por `(source, title, datetime_utc)`, UTC normalizado a partir del `datetime` con offset (REData no trae `datetime_utc` como ESIOS). Sin reglas de validación de rango — el spec no da ninguna para REData y no se ha inventado ninguna
+- [x] `bronze_to_silver.py` — REData Silver probado end-to-end (`scripts/smoke_bronze_to_silver_redata.py`): 75 filas Bronze → 75 Silver (sin dupes reales), y **dedup verificado inyectando un duplicado real** (77 → 76, colapsa correctamente)
+- [x] Funciones ESIOS renombradas con sufijo `_esios` (`parse_esios_bronze_record`, `run_esios`, etc.) al añadir REData al mismo fichero, para que no se confundan los dos pipelines
+- [ ] `bronze_to_silver.py` — pendiente (PR aparte, según lo acordado): join temporal hora a hora entre PVPC/SPOT/eólica/solar
 - [ ] `silver_to_gold.py` — no empezado
 - [ ] Pipeline DLT real (los `@dlt.table`/`@dlt.expect` que envuelven la lógica pura de Silver) — no se puede probar en local, requiere desplegar a un workspace de Databricks. `bronze_to_silver.py` está escrito para poder envolverse en `@dlt.table` más adelante sin rehacer la lógica
 

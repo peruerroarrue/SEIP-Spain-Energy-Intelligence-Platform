@@ -1,23 +1,38 @@
-"""Bronze -> Silver transformation for the ESIOS streaming data (PVPC, SPOT, wind, solar).
+"""Bronze -> Silver transformations.
 
-The validation rules and record shape are defined twice on purpose:
-  - `parse_bronze_record` / `validate_record` are plain Python — the readable,
+Two independent pipelines live here, one per Bronze source — kept in the same
+file per the repo's planned structure, but with `_esios`/`_redata` suffixes
+throughout so the two don't get confused:
+
+  - ESIOS streaming (PVPC, SPOT, wind, solar): `run_esios`. Bronze is read as
+    a genuine Spark Structured Streaming source with a 2h watermark, because
+    that data can arrive with duplicates/late records by design (see
+    kafka_producer's overlapping fetch windows).
+  - REData batch (generación, balance, renovable/no-renovable): `run_redata`.
+    This source is a scheduled batch job, not streaming, so there is no
+    late-arrival concern — a plain batch read + dedup + overwrite is enough
+    and much simpler.
+
+Each pipeline's parsing/validation logic is defined twice on purpose:
+  - `parse_esios_bronze_record` / `validate_esios_record` and
+    `parse_redata_bronze_record` are plain Python — the readable,
     fast-to-test "spec" of what Silver must do to one record.
-  - `parse_bronze_stream` / `add_validation_flags` are the Spark-native
-    column-expression equivalents, used by `run`. They have to be Spark
-    expressions (not a Python row loop) so that `dropDuplicates` +
-    `withWatermark` run as genuine stateful streaming operators instead of
-    being reset every micro-batch.
+  - `parse_esios_bronze_stream` / `add_esios_validation_flags` and
+    `parse_redata_bronze_batch` are the Spark-native column-expression
+    equivalents actually used by `run_esios`/`run_redata`. For the ESIOS path
+    this has to be native Spark expressions (not a Python row loop) so that
+    `dropDuplicates` + `withWatermark` run as genuine stateful streaming
+    operators instead of being reset every micro-batch.
 
-Keep both in sync when a rule changes; `scripts/smoke_bronze_to_silver.py`
-exercises the Spark-native path against real data as the check that they
-still agree.
+Keep each pair in sync when a rule changes; `scripts/smoke_bronze_to_silver_esios.py`
+and `scripts/smoke_bronze_to_silver_redata.py` exercise the Spark-native paths
+against real data as the check that they still agree.
 """
 
 from __future__ import annotations
 
 import json
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
@@ -26,15 +41,19 @@ if TYPE_CHECKING:
 
 # Spec 4.3: "alerta si PVPC < 0 o > 700 €/MWh, si potencia solar nocturna > 10 MW, etc."
 # Only these two explicit rules are implemented — the spec's "etc." leaves room
-# for more, deliberately left as a TODO rather than guessed at.
+# for more, deliberately left as a TODO rather than guessed at. No equivalent
+# range rules are specified for REData, so none are invented for it either.
 PRICE_RANGE = (0.0, 700.0)
 PRICE_INDICATOR_IDS = (1001, 600)  # PVPC, SPOT
 SOLAR_INDICATOR_ID = 1295
 NIGHT_SOLAR_MAX_MW = 10.0
 
 
-def parse_bronze_record(raw_json: str) -> dict:
-    """Parse one Bronze `raw_json` string into a typed record.
+# --- ESIOS streaming -------------------------------------------------------
+
+
+def parse_esios_bronze_record(raw_json: str) -> dict:
+    """Parse one ESIOS Bronze `raw_json` string into a typed record.
 
     Untyped Bronze -> typed Silver is exactly the boundary the spec assigns to
     this layer; Bronze itself never casts/parses.
@@ -59,7 +78,7 @@ def _is_night_hour_utc(datetime_utc: datetime, local_utc_offset_hours: int = 2) 
     return local_hour < 6 or local_hour >= 22
 
 
-def validate_record(record: dict) -> list[str]:
+def validate_esios_record(record: dict) -> list[str]:
     """Return the range-validation rule names this record violates (empty if none).
 
     Violations are flagged, not used to drop the record — Silver keeps every
@@ -84,8 +103,8 @@ def validate_record(record: dict) -> list[str]:
     return violations
 
 
-def parse_bronze_stream(bronze_stream: "DataFrame") -> "DataFrame":
-    """Spark-native equivalent of parse_bronze_record, applied to a Bronze DataFrame/stream."""
+def parse_esios_bronze_stream(bronze_stream: "DataFrame") -> "DataFrame":
+    """Spark-native equivalent of parse_esios_bronze_record, applied to a Bronze DataFrame/stream."""
     from pyspark.sql import functions as F
     from pyspark.sql.types import DoubleType, LongType, StringType, StructField, StructType
 
@@ -111,8 +130,8 @@ def parse_bronze_stream(bronze_stream: "DataFrame") -> "DataFrame":
     )
 
 
-def _validation_flags_column() -> "Column":
-    """Spark-native mirror of validate_record — keep the two in sync."""
+def _esios_validation_flags_column() -> "Column":
+    """Spark-native mirror of validate_esios_record — keep the two in sync."""
     from pyspark.sql import functions as F
 
     low, high = PRICE_RANGE
@@ -132,12 +151,12 @@ def _validation_flags_column() -> "Column":
     return F.array_except(flags_array, F.array(F.lit(None).cast("string")))
 
 
-def add_validation_flags(df: "DataFrame") -> "DataFrame":
-    return df.withColumn("validation_flags", _validation_flags_column())
+def add_esios_validation_flags(df: "DataFrame") -> "DataFrame":
+    return df.withColumn("validation_flags", _esios_validation_flags_column())
 
 
-def run(spark: "SparkSession", bronze_path: str, silver_path: str, checkpoint_path: str) -> "StreamingQuery":
-    """Stream new Bronze rows into Silver: parse, validate, dedup with a 2h watermark.
+def run_esios(spark: "SparkSession", bronze_path: str, silver_path: str, checkpoint_path: str) -> "StreamingQuery":
+    """Stream new ESIOS Bronze rows into Silver: parse, validate, dedup with a 2h watermark.
 
     Bronze is read as a stream (not a static batch) specifically so
     `dropDuplicates` can run as a genuine stateful streaming operator bounded
@@ -149,7 +168,7 @@ def run(spark: "SparkSession", bronze_path: str, silver_path: str, checkpoint_pa
     """
     bronze_stream = spark.readStream.format("delta").load(bronze_path)
 
-    silver_df = add_validation_flags(parse_bronze_stream(bronze_stream))
+    silver_df = add_esios_validation_flags(parse_esios_bronze_stream(bronze_stream))
 
     deduped = silver_df.withWatermark("fetched_at", "2 hours").dropDuplicates(["indicator_id", "datetime_utc"])
 
@@ -164,13 +183,82 @@ def run(spark: "SparkSession", bronze_path: str, silver_path: str, checkpoint_pa
     return query
 
 
+# --- REData batch -----------------------------------------------------------
+
+
+def parse_redata_bronze_record(raw_json: str) -> dict:
+    """Parse one REData Bronze `raw_json` string into a typed record.
+
+    Unlike ESIOS, REData records have no ready-made `datetime_utc` field —
+    only an offset-aware `datetime` string (e.g. "...+02:00") that must be
+    normalized to UTC here. `percentage` is optional (only some REData series
+    carry it), so it's kept nullable rather than defaulted.
+    """
+    record = json.loads(raw_json)
+    percentage = record.get("percentage")
+    return {
+        "source": record["source"],
+        "title": record.get("title"),
+        "datetime_utc": datetime.fromisoformat(record["datetime"]).astimezone(timezone.utc),
+        "value": float(record["value"]),
+        "percentage": float(percentage) if percentage is not None else None,
+    }
+
+
+def parse_redata_bronze_batch(bronze_df: "DataFrame") -> "DataFrame":
+    """Spark-native equivalent of parse_redata_bronze_record."""
+    from pyspark.sql import functions as F
+    from pyspark.sql.types import DoubleType, StringType, StructField, StructType
+
+    schema = StructType(
+        [
+            StructField("source", StringType()),
+            StructField("title", StringType()),
+            StructField("value", DoubleType()),
+            StructField("percentage", DoubleType()),
+            StructField("datetime", StringType()),
+        ]
+    )
+    return bronze_df.select(F.from_json("raw_json", schema).alias("data")).select(
+        F.col("data.source").alias("source"),
+        F.col("data.title").alias("title"),
+        F.to_timestamp("data.datetime").alias("datetime_utc"),
+        F.col("data.value").alias("value"),
+        F.col("data.percentage").alias("percentage"),
+    )
+
+
+def run_redata(spark: "SparkSession", bronze_path: str, silver_path: str) -> "DataFrame":
+    """Batch (not streaming) Bronze -> Silver for REData: parse, normalize UTC, dedup.
+
+    REData ingestion is a scheduled daily batch (see batch_job.py), not
+    streaming, so there is no late-arrival/watermarking concern here — a
+    plain batch read + dedup + overwrite is enough. Re-running batch_job for
+    an already-ingested day is the only realistic source of duplicates, and
+    the (source, title, datetime_utc) dedup below covers that.
+    """
+    bronze_df = spark.read.format("delta").load(bronze_path)
+    silver_df = parse_redata_bronze_batch(bronze_df).dropDuplicates(["source", "title", "datetime_utc"])
+    silver_df.write.format("delta").mode("overwrite").save(silver_path)
+    return silver_df
+
+
 if __name__ == "__main__":
+    import sys
+
     from seip.ingestion.spark_session import build_local_spark_session
 
+    target = sys.argv[1] if len(sys.argv) > 1 else "esios"
     spark_session = build_local_spark_session("seip-bronze-to-silver")
-    run(
-        spark_session,
-        bronze_path="data/bronze/esios",
-        silver_path="data/silver/esios",
-        checkpoint_path="data/checkpoints/esios_silver",
-    )
+
+    if target == "esios":
+        run_esios(
+            spark_session,
+            bronze_path="data/bronze/esios",
+            silver_path="data/silver/esios",
+            checkpoint_path="data/checkpoints/esios_silver",
+        )
+    elif target == "redata":
+        run_redata(spark_session, bronze_path="data/bronze/redata", silver_path="data/silver/redata")
+    else:
+        raise SystemExit(f"unknown target {target!r} (expected 'esios' or 'redata')")
