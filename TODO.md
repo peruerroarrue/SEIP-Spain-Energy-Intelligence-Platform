@@ -30,7 +30,9 @@ Lista viva de lo que falta por implementar o por verificar contra sistemas reale
 - [x] Funciones ESIOS renombradas con sufijo `_esios` (`parse_esios_bronze_record`, `run_esios`, etc.) al añadir REData al mismo fichero, para que no se confundan los dos pipelines
 - [x] `bronze_to_silver.py` — join temporal hora a hora (`run_esios_hourly_join`): media por hora de cada serie (PVPC ya horario, SPOT/eólica/solar se promedian) + pivot a tabla ancha (`pvpc_eur_mwh`/`spot_eur_mwh`/`eolica_mw`/`solar_mw`), una fila por hora. Horas con algún indicador ausente quedan con `NULL` en esa columna, no se descartan
 - [x] `bronze_to_silver.py` — join horario probado end-to-end (`scripts/smoke_bronze_to_silver_hourly_join.py`) contra datos reales: 4 filas horarias, SPOT/eólica/solar correctamente promediados dentro de cada hora, `NULL` correcto en horas con datos parciales
-- [ ] `silver_to_gold.py` — no empezado
+- [x] `silver_to_gold.py` — 2 de los 3 KPIs del spec: precio medio por hora del día (`avg_pvpc_eur_mwh`/`avg_spot_eur_mwh`) y comparativa PVPC vs SPOT (`spread_eur_mwh`), ambos a partir del Silver horario ESIOS. `% penetración renovable` queda pendiente (necesita cruzar REData día + ESIOS hora, decisión propia sin resolver todavía)
+- [x] `silver_to_gold.py` — probado end-to-end (`scripts/smoke_silver_to_gold.py`) contra datos reales: `NULL` correcto donde falta un precio, spread calculado bien donde hay ambos. Nota: con los datos de prueba actuales (pocas horas de un solo día) no se llega a ejercitar el promedio entre *varios* días para una misma hora — eso sí está cubierto por los tests unitarios en Python puro
+- [ ] `silver_to_gold.py` — pendiente: KPI `% penetración renovable` + feature de ML equivalente, y la feature store completa (lags, cíclicas, eólica/solar)
 - [ ] Pipeline DLT real (los `@dlt.table`/`@dlt.expect` que envuelven la lógica pura de Silver) — no se puede probar en local, requiere desplegar a un workspace de Databricks. `bronze_to_silver.py` está escrito para poder envolverse en `@dlt.table` más adelante sin rehacer la lógica
 
 ## Quality
