@@ -16,16 +16,21 @@ planned structure, but named distinctly so they don't get confused:
     late-arrival concern — a plain batch read + dedup + overwrite is enough
     and much simpler.
 
-Each pipeline's parsing/validation logic is defined twice on purpose:
-  - `parse_esios_bronze_record` / `validate_esios_record` and
-    `parse_redata_bronze_record` are plain Python — the readable,
-    fast-to-test "spec" of what Silver must do to one record.
-  - `parse_esios_bronze_stream` / `add_esios_validation_flags` and
-    `parse_redata_bronze_batch` are the Spark-native column-expression
-    equivalents actually used by `run_esios`/`run_redata`. For the ESIOS path
-    this has to be native Spark expressions (not a Python row loop) so that
-    `dropDuplicates` + `withWatermark` run as genuine stateful streaming
-    operators instead of being reset every micro-batch.
+Each pipeline's parsing logic is defined twice on purpose:
+  - `parse_esios_bronze_record` and `parse_redata_bronze_record` are plain
+    Python — the readable, fast-to-test "spec" of what Silver must do to one
+    record.
+  - `parse_esios_bronze_stream` and `parse_redata_bronze_batch` are the
+    Spark-native column-expression equivalents actually used by
+    `run_esios`/`run_redata`. For the ESIOS path this has to be native Spark
+    expressions (not a Python row loop) so that `dropDuplicates` +
+    `withWatermark` run as genuine stateful streaming operators instead of
+    being reset every micro-batch.
+
+Range validation (`validate_esios_record` / `add_esios_validation_flags`)
+is now a thin wrapper over the rule engine in `seip.quality.validations` —
+see that module for the actual rules and why it's a custom engine rather
+than Great Expectations or `@dlt.expect`.
 
 Keep each pair in sync when a rule changes; `scripts/smoke_bronze_to_silver_esios.py`
 and `scripts/smoke_bronze_to_silver_redata.py` exercise the Spark-native paths
@@ -38,18 +43,11 @@ import json
 from datetime import datetime, timezone
 from typing import TYPE_CHECKING
 
-if TYPE_CHECKING:
-    from pyspark.sql import Column, DataFrame, SparkSession
-    from pyspark.sql.streaming import StreamingQuery
+from seip.quality.validations import ESIOS_VALIDATION_RULES, apply_rules, rules_flags_column
 
-# Spec 4.3: "alerta si PVPC < 0 o > 700 €/MWh, si potencia solar nocturna > 10 MW, etc."
-# Only these two explicit rules are implemented — the spec's "etc." leaves room
-# for more, deliberately left as a TODO rather than guessed at. No equivalent
-# range rules are specified for REData, so none are invented for it either.
-PRICE_RANGE = (0.0, 700.0)
-PRICE_INDICATOR_IDS = (1001, 600)  # PVPC, SPOT
-SOLAR_INDICATOR_ID = 1295
-NIGHT_SOLAR_MAX_MW = 10.0
+if TYPE_CHECKING:
+    from pyspark.sql import DataFrame, SparkSession
+    from pyspark.sql.streaming import StreamingQuery
 
 
 # --- ESIOS streaming -------------------------------------------------------
@@ -71,39 +69,14 @@ def parse_esios_bronze_record(raw_json: str) -> dict:
     }
 
 
-def _is_night_hour_utc(datetime_utc: datetime, local_utc_offset_hours: int = 2) -> bool:
-    """Rough local-hour check for the sun-down window, used only for the solar sanity check.
-
-    Uses a fixed CEST-ish offset rather than a full timezone/DST library — good
-    enough for a sanity alert, not for anything that needs to be exact.
-    """
-    local_hour = (datetime_utc.hour + local_utc_offset_hours) % 24
-    return local_hour < 6 or local_hour >= 22
-
-
 def validate_esios_record(record: dict) -> list[str]:
-    """Return the range-validation rule names this record violates (empty if none).
+    """Return the validation rule names this record violates (empty if none).
 
-    Violations are flagged, not used to drop the record — Silver keeps every
+    Thin wrapper over seip.quality.validations.ESIOS_VALIDATION_RULES —
+    violations are flagged, not used to drop the record: Silver keeps every
     row so Gold/analysis can decide what to do with flagged data.
     """
-    violations = []
-    indicator_id = record["indicator_id"]
-    value = record["value"]
-
-    if indicator_id in PRICE_INDICATOR_IDS:
-        low, high = PRICE_RANGE
-        if not (low <= value <= high):
-            violations.append(f"value_out_of_range_{low}_{high}")
-
-    if (
-        indicator_id == SOLAR_INDICATOR_ID
-        and _is_night_hour_utc(record["datetime_utc"])
-        and value > NIGHT_SOLAR_MAX_MW
-    ):
-        violations.append("night_solar_generation_above_threshold")
-
-    return violations
+    return apply_rules(record, ESIOS_VALIDATION_RULES)
 
 
 def parse_esios_bronze_stream(bronze_stream: "DataFrame") -> "DataFrame":
@@ -133,29 +106,9 @@ def parse_esios_bronze_stream(bronze_stream: "DataFrame") -> "DataFrame":
     )
 
 
-def _esios_validation_flags_column() -> "Column":
-    """Spark-native mirror of validate_esios_record — keep the two in sync."""
-    from pyspark.sql import functions as F
-
-    low, high = PRICE_RANGE
-    price_flag = F.when(
-        F.col("indicator_id").isin(*PRICE_INDICATOR_IDS) & ~F.col("value").between(low, high),
-        F.lit(f"value_out_of_range_{low}_{high}"),
-    )
-
-    local_hour = (F.hour("datetime_utc") + 2) % 24
-    is_night = (local_hour < 6) | (local_hour >= 22)
-    solar_flag = F.when(
-        (F.col("indicator_id") == SOLAR_INDICATOR_ID) & is_night & (F.col("value") > NIGHT_SOLAR_MAX_MW),
-        F.lit("night_solar_generation_above_threshold"),
-    )
-
-    flags_array = F.array(price_flag, solar_flag)
-    return F.array_except(flags_array, F.array(F.lit(None).cast("string")))
-
-
 def add_esios_validation_flags(df: "DataFrame") -> "DataFrame":
-    return df.withColumn("validation_flags", _esios_validation_flags_column())
+    """Thin wrapper over seip.quality.validations.rules_flags_column."""
+    return df.withColumn("validation_flags", rules_flags_column(ESIOS_VALIDATION_RULES))
 
 
 def run_esios(spark: "SparkSession", bronze_path: str, silver_path: str, checkpoint_path: str) -> "StreamingQuery":
