@@ -67,6 +67,13 @@ Lista viva de lo que falta por implementar o por verificar contra sistemas reale
 - [ ] Confluent Cloud vs Kafka local — configurar y documentar en DECISIONS.md
 - [ ] Verificar que el wheel se instala limpio en un entorno nuevo (criterio de aceptación Fase 5)
 - [x] PySpark local funcionando en esta máquina: usar JAVA_HOME=`C:\java-tools\jdk-11.0.32+9` (JDK 17/21 del sistema fallan, ver DECISIONS.md)
+- [ ] **PENDIENTE GRANDE (anotado 2026-08-05): migrar de local a Azure real.** Todo lo construido hasta ahora (`data/bronze`, `data/silver`, `data/gold`, MLflow) vive en el disco local, no en ADLS Gen2/Databricks — decisión consciente para iterar gratis y rápido, pero el entregable final lo exige de verdad (spec sección 4.4, memoria, vídeo de demo). Pasos:
+  - Crear cuenta ADLS Gen2 (contenedores bronze/silver/gold)
+  - Cambiar las rutas (`bronze_path`/`silver_path`/etc.) de `data/...` a `abfss://...dfs.core.windows.net/...` — cada función ya las recibe como parámetro, no hardcodeadas, así que el cambio es mecánico
+  - Levantar workspace de Databricks, cluster de un solo nodo con auto-terminate, acceso al storage
+  - Crear los Jobs de Databricks que orquesten lo ya construido (batch, streaming, Silver ×2, join horario, Gold, features, train, inference) — ya lo conceptualizamos como un Job multi-tarea al hablar de `bronze_to_silver.py`
+  - Decidir Kafka real: Confluent Cloud (para que Databricks lo alcance) vs replantear el streaming
+  - Dejarlo para el final, una vez cerrada la lógica pendiente (`% renovable`, `validations.py`) — minimiza tiempo de cluster encendido y coste
 
 ## Documentación / entrega
 
