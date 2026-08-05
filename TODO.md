@@ -7,7 +7,7 @@ Lista viva de lo que falta por implementar o por verificar contra sistemas reale
 - [x] `esios_client.py` — fetch con retry/backoff, filtro geo_id, guarda indicador descontinuado (tests con mocks, ver `tests/test_esios_client.py`)
 - [x] `esios_client.py` — probado contra la API real con token válido (`scripts/smoke_esios.py`, indicador 1001, 25 valores/día, geo_id 8741 correcto). Nota: al imprimir en consola Windows (Git Bash), caracteres como `€`/`í` salen mal (`Precio /MWh`) — confirmado que es solo la consola (codepoint `0x20ac` correcto en memoria), no un bug del cliente
 - [ ] `esios_client.py` — leer `api_key` desde variable de entorno en vez de solo parámetro explícito
-- [ ] `esios_client.py` — helper de paginación para backfill histórico largo (Regla 3: paginar por mes/año, pausa de cortesía 1-1.5s)
+- [x] `esios_client.py` — helper de paginación para backfill histórico largo (Regla 3: paginar por mes/año, pausa de cortesía 1-1.5s) — hecho en `historical_backfill.py` (`month_windows`), no en el propio cliente
 - [x] `redata_client.py` — hecho: `fetch_series` genérico + wrappers para generación/renovable-no-renovable/demanda/balance/intercambios, con parser de `content` anidado para balance-electrico
 - [x] `redata_client.py` — probado contra la API real (`scripts/smoke_redata.py`): generación (30 valores, 15 fuentes), renovable/no-renovable, balance (41 valores, parser de `content` verificado con datos reales). `intercambios` falló tras reintentos como se esperaba (endpoint no crítico)
 - [ ] `redata_client.py` — leer credenciales/params desde config en vez de solo argumentos explícitos (mismo pendiente que ESIOS, no es crítico ahora mismo)
@@ -33,7 +33,10 @@ Lista viva de lo que falta por implementar o por verificar contra sistemas reale
 - [x] `bronze_to_silver.py` — join horario probado end-to-end (`scripts/smoke_bronze_to_silver_hourly_join.py`) contra datos reales: 4 filas horarias, SPOT/eólica/solar correctamente promediados dentro de cada hora, `NULL` correcto en horas con datos parciales
 - [x] `silver_to_gold.py` — 2 de los 3 KPIs del spec: precio medio por hora del día (`avg_pvpc_eur_mwh`/`avg_spot_eur_mwh`) y comparativa PVPC vs SPOT (`spread_eur_mwh`), ambos a partir del Silver horario ESIOS. `% penetración renovable` queda pendiente (necesita cruzar REData día + ESIOS hora, decisión propia sin resolver todavía)
 - [x] `silver_to_gold.py` — probado end-to-end (`scripts/smoke_silver_to_gold.py`) contra datos reales: `NULL` correcto donde falta un precio, spread calculado bien donde hay ambos. Nota: con los datos de prueba actuales (pocas horas de un solo día) no se llega a ejercitar el promedio entre *varios* días para una misma hora — eso sí está cubierto por los tests unitarios en Python puro
-- [ ] `silver_to_gold.py` — pendiente: KPI `% penetración renovable` + feature de ML equivalente, y la feature store completa (lags, cíclicas, eólica/solar)
+- [ ] `silver_to_gold.py` — **PENDIENTE, aparcado deliberadamente el 2026-07-30 para priorizar `train.py` (núcleo > enriquecimiento Gold, per spec sección 2). Retomar con esto:**
+  - Fuentes ya listas para el cruce: `data/silver/redata` (filas `source=evolucion_renovable_no_renovable`, `title` "Renovable"/"No renovable", granularidad **día**) + `data/silver/esios_hourly` (granularidad **hora**)
+  - Decisión de diseño pendiente de tomar: cómo repartir el % diario de REData a cada una de las 24 horas de ese día (opción más simple: repetir el mismo % en todas las horas del día — un "broadcast join" por fecha en vez de por hora exacta)
+  - Una vez decidido, añadir como: (a) columna en un nuevo KPI Gold `% penetración renovable`, y (b) feature adicional en `seip/ml/features.py` ("% renovable de la última hora", sección 6 del spec)
 - [ ] Pipeline DLT real (los `@dlt.table`/`@dlt.expect` que envuelven la lógica pura de Silver) — no se puede probar en local, requiere desplegar a un workspace de Databricks. `bronze_to_silver.py` está escrito para poder envolverse en `@dlt.table` más adelante sin rehacer la lógica
 
 ## Quality
@@ -43,9 +46,14 @@ Lista viva de lo que falta por implementar o por verificar contra sistemas reale
 
 ## ML
 
-- [x] `features.py` — hecho: lags de PVPC (1h/24h/168h, vía join por timestamp desplazado, no `lag()` posicional — no se descoloca si hay huecos), variables cíclicas hora-del-día/día-de-la-semana (seno/coseno), mes del año. `% renovable` y demanda quedan pendientes (ver `silver_to_gold.py` de arriba)
+- [x] `features.py` — hecho: lags de PVPC (1h/24h/168h, vía join por timestamp desplazado, no `lag()` posicional — no se descoloca si hay huecos), variables cíclicas hora-del-día/día-de-la-semana (seno/coseno), mes del año. `% renovable` y demanda quedan pendientes — ver la nota detallada de `silver_to_gold.py` en Transform, arriba
 - [x] `features.py` — probado end-to-end (`scripts/smoke_features.py`), incluyendo un cross-check exacto Spark-vs-Python de las variables cíclicas ("all rows match exactly") — fue precisamente esta verificación la que sacó a la luz el bug de zona horaria de `streaming_bronze.py`
-- [ ] `train.py`, `inference.py` — no empezados
+- [x] `historical_backfill.py` — hecho: backfill paginado por mes de los 4 indicadores ESIOS a `data/bronze/esios` (mismo esquema que streaming), reutiliza `kafka_producer.INDICATORS` como fuente única de verdad
+- [x] `historical_backfill.py` — **ejecutado de verdad contra la API real**: 6 meses (2026-02-06 a 2026-08-05), 125.279 filas Bronze → 125.255 Silver → 4.320 filas horarias (180 días × 24h exacto)
+- [x] `train.py` — hecho: 24 modelos independientes por horizonte (h+1..h+24, no recursivo), target + variables cíclicas recalculadas para la **hora objetivo** (no la hora de origen — importa para el ciclo diario), baseline naive (`pvpc_lag_24h`), split cronológico train/test (nunca aleatorio en series temporales), tracking MLflow (params/métricas/modelo), registro en Model Registry con alias `reference`
+- [x] `train.py` — **entrenado y evaluado contra datos reales de verdad** (`scripts/smoke_train.py`, split de 3 meses de test): **los 24/24 horizontes superan el baseline naive en RMSE y MAE** (p.ej. h+1: RMSE 29.43 vs 55.28€; h+24: RMSE 32.70 vs 62.76€) — cumple el criterio de aceptación de la Fase 4. Modelo `seip-pvpc-forecast-h1` v1 registrado con alias `reference` confirmado
+- [x] Corregido en el camino: `mlflow.sklearn.log_model` falla con LightGBM en MLflow 3.x (skops no confía por defecto en `lightgbm.basic.Booster`) — usar `mlflow.lightgbm.log_model` en su lugar
+- [ ] `inference.py` — no empezado
 
 ## Infraestructura / soporte
 

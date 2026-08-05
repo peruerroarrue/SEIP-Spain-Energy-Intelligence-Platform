@@ -22,6 +22,8 @@ htmlcov/
 # Databricks / MLflow
 .databricks/
 mlruns/
+mlflow.db
+mlartifacts/
 
 # Local Spark/Delta output and metastore (smoke tests write here)
 data/
