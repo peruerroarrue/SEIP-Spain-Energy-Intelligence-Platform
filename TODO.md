@@ -54,7 +54,9 @@ Lista viva de lo que falta por implementar o por verificar contra sistemas reale
 - [x] `train.py` — **los 24 modelos se registran en el Model Registry**, uno por horizonte (`seip-pvpc-forecast-h1`...`h24`), cada uno con alias `reference` — no solo h+1. Necesario para que `inference.py` pueda generar el forecast completo de 24h, no solo 1 hora vista. Confirmado: 24/24 registrados correctamente (`h1` en v2 por reentreno, `h2`-`h24` en v1)
 - [x] `train.py` — **entrenado y evaluado contra datos reales de verdad** (`scripts/smoke_train.py`, split de 3 meses de test): **los 24/24 horizontes superan el baseline naive en RMSE y MAE** (p.ej. h+1: RMSE 29.43 vs 55.28€; h+24: RMSE 32.70 vs 62.76€) — cumple el criterio de aceptación de la Fase 4. Modelo `seip-pvpc-forecast-h1` v1 registrado con alias `reference` confirmado
 - [x] Corregido en el camino: `mlflow.sklearn.log_model` falla con LightGBM en MLflow 3.x (skops no confía por defecto en `lightgbm.basic.Booster`) — usar `mlflow.lightgbm.log_model` en su lugar
-- [ ] `inference.py` — no empezado
+- [x] `inference.py` — hecho: carga el modelo `reference` de cada uno de los 24 horizontes desde el Model Registry, predice desde la última fila de features disponible, escribe las 24 predicciones en `data/gold/pvpc_forecast`. `compute_target_calendar_features` movida a `train.py` y reutilizada aquí (una sola fuente de verdad entre entrenamiento e inferencia, en vez de duplicar la lógica)
+- [x] `inference.py` — **ejecutado de verdad** (`scripts/smoke_inference.py`) contra los 24 modelos reales registrados: 24 predicciones coherentes con un patrón diario realista (precios bajos a mediodía por el solar, pico por la tarde-noche en la punta de demanda) — buena señal cualitativa de que el modelo aprendió algo real, no ruido
+- [x] Verificado (aislado, antes de escribir `inference.py`): `toPandas()` sí respeta `spark.sql.session.timeZone` correctamente, a diferencia de `.collect()` puro — confirma que `train.py` no tenía el bug de zona horaria pese a usar `toPandas()` extensivamente
 
 ## Infraestructura / soporte
 

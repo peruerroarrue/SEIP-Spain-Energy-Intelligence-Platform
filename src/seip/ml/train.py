@@ -26,7 +26,7 @@ scripts/smoke_train.py, not the fast pytest suite.
 from __future__ import annotations
 
 import math
-from datetime import date
+from datetime import date, datetime, timedelta
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
@@ -75,12 +75,39 @@ def train_test_split_by_date(rows: list[dict], test_start: date, date_key: str =
     return train, test
 
 
+def compute_target_calendar_features(origin_hour: datetime, horizon_hours: int) -> dict:
+    """Calendar features of the target hour (origin_hour + horizon_hours) — the
+    plain-Python reference for what build_horizon_training_set computes with
+    Spark expressions on `hour_utc + INTERVAL horizon_hours HOURS`.
+
+    Shared by train.py (to build training targets) and inference.py (to score
+    a live prediction) — both must use the identical convention, since a model
+    trained on one and scored with a mismatched one would silently degrade.
+    """
+    target_hour = origin_hour + timedelta(hours=horizon_hours)
+    two_pi = 2 * math.pi
+    hour_angle = two_pi * target_hour.hour / 24
+    # Python weekday(): Mon=0..Sun=6 — must match build_horizon_training_set's
+    # (dayofweek + 5) % 7 conversion from Spark's Sun=1..Sat=7 convention.
+    dow_angle = two_pi * target_hour.weekday() / 7
+    return {
+        "target_hour_sin": math.sin(hour_angle),
+        "target_hour_cos": math.cos(hour_angle),
+        "target_dow_sin": math.sin(dow_angle),
+        "target_dow_cos": math.cos(dow_angle),
+        "target_month": target_hour.month,
+    }
+
+
 def build_horizon_training_set(features_df: "DataFrame", horizon_hours: int) -> "DataFrame":
     """Join each row to its PVPC value `horizon_hours` ahead, with calendar features of that target hour.
 
     Rows missing any required lag/target value are dropped — a model can't
     train on an incomplete row, and LightGBM's native NaN handling isn't
     worth relying on here for a first cut.
+
+    Mirrors compute_target_calendar_features in Spark-native form — see that
+    function's docstring for why the two must stay numerically identical.
     """
     from pyspark.sql import functions as F
 
