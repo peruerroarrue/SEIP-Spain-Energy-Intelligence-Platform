@@ -1,6 +1,12 @@
 from datetime import date, datetime
 
-from seip.ml.train import compute_errors, compute_mae, compute_rmse, train_test_split_by_date
+from seip.ml.train import compute_errors, compute_mae, compute_rmse, registered_model_name, train_test_split_by_date
+
+
+def test_registered_model_name_is_per_horizon():
+    assert registered_model_name(1) == "seip-pvpc-forecast-h1"
+    assert registered_model_name(24) == "seip-pvpc-forecast-h24"
+    assert registered_model_name(1) != registered_model_name(2)
 
 
 def test_compute_errors_is_true_minus_predicted():

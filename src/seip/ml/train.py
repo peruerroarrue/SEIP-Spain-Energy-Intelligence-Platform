@@ -40,6 +40,18 @@ TARGET_COLUMN = "target_pvpc_eur_mwh"
 BASELINE_COLUMN = "pvpc_lag_24h"  # naive persistence: same hour, 1 day earlier
 
 
+def registered_model_name(horizon_hours: int) -> str:
+    """Model Registry name for one horizon's model.
+
+    Each horizon gets its own registered model, not one shared name — h+1 and
+    h+24 are genuinely different problems (different training set, different
+    error profile), so "the reference version" has to mean something
+    per-horizon for inference.py to load the right model for each hour it
+    predicts.
+    """
+    return f"seip-pvpc-forecast-h{horizon_hours}"
+
+
 def compute_errors(y_true: list[float], y_pred: list[float]) -> list[float]:
     return [true - pred for true, pred in zip(y_true, y_pred)]
 
@@ -165,29 +177,35 @@ def run(
     test_start_date: date,
     horizons: tuple[int, ...] = HORIZONS,
     experiment_name: str = "seip-pvpc-forecast",
-    registered_model_name: str = "seip-pvpc-forecast-h1",
 ) -> list[dict]:
-    """Train + evaluate every horizon, and register the h+1 model as the reference version.
+    """Train + evaluate every horizon, registering each as its own Model Registry
+    entry with a "reference" alias on its version.
 
-    h+1 is registered (not all 24) as a single representative version — the
-    spec's Phase 4 acceptance criterion only requires "at least one version
-    marked as reference" in the Model Registry, and h+1 is the most
-    immediately actionable horizon to demonstrate.
+    All 24 are registered (not just h+1): inference.py needs the reference
+    model for *every* horizon to produce a full next-24h forecast, per the
+    spec's actual deliverable ("genera las predicciones de las próximas 24h
+    en una tabla Gold") — a single representative horizon isn't enough for
+    that, even though it would have satisfied the letter of the "at least
+    one reference version" acceptance criterion on its own.
     """
     import mlflow
 
     features_df = spark.read.format("delta").load(features_path)
+    client = mlflow.tracking.MlflowClient()
 
     results = []
     for horizon_hours in horizons:
         horizon_df = build_horizon_training_set(features_df, horizon_hours)
-        results.append(train_one_horizon(horizon_df, horizon_hours, test_start_date, experiment_name))
+        result = train_one_horizon(horizon_df, horizon_hours, test_start_date, experiment_name)
 
-    h1_result = next(r for r in results if r["horizon_hours"] == 1)
-    model_uri = f"runs:/{h1_result['run_id']}/model"
-    registered = mlflow.register_model(model_uri, registered_model_name)
-    client = mlflow.tracking.MlflowClient()
-    client.set_registered_model_alias(registered_model_name, "reference", registered.version)
+        model_name = registered_model_name(horizon_hours)
+        model_uri = f"runs:/{result['run_id']}/model"
+        registered = mlflow.register_model(model_uri, model_name)
+        client.set_registered_model_alias(model_name, "reference", registered.version)
+        result["registered_model_name"] = model_name
+        result["registered_version"] = registered.version
+
+        results.append(result)
 
     return results
 

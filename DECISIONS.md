@@ -101,3 +101,10 @@ Encontrado mientras se verificaba `features.py` con un cross-check Spark-vs-Pyth
 - **Bug encontrado y corregido en el camino:** `mlflow.sklearn.log_model` falla al guardar un `LGBMRegressor` en MLflow 3.x — su serialización pasa por `skops`, cuya lista de tipos de confianza por defecto no incluye `lightgbm.basic.Booster`/`lightgbm.sklearn.LGBMRegressor`, aunque `LGBMRegressor` implemente la interfaz de estimador de sklearn. Arreglado usando `mlflow.lightgbm.log_model` (el flavor nativo de LightGBM), que no pasa por esa comprobación.
 - **Resultado real, no simulado:** entrenado y evaluado con `scripts/smoke_train.py` contra los datos reales del backfill (test = últimos 3 meses). **Los 24/24 horizontes superan el baseline naive en RMSE y MAE** — p.ej. h+1: RMSE 29.43€ vs 55.28€ del baseline (~47% mejor); h+24: RMSE 32.70€ vs 62.76€ (~48% mejor). Cumple el criterio de aceptación de la Fase 4 tal cual está escrito en el spec. Verificado el registro: `seip-pvpc-forecast-h1` v1 con alias `reference` confirmado vía `MlflowClient`.
 - MLflow 3.x crea `mlflow.db` (SQLite) localmente además de `mlruns/` — añadido a `.gitignore` junto con `mlartifacts/`.
+
+## 2026-08-05 — Revisión: registrar los 24 modelos, no solo h+1
+
+Al diseñar `inference.py` (que debe generar las 24 predicciones siguientes según el spec) quedó claro que registrar solo h+1 no era suficiente — aunque cumplía la letra del criterio de aceptación ("al menos una versión de referencia"), `inference.py` necesita el modelo de referencia de **cada** horizonte para producir el forecast completo de 24h.
+
+- `run()` ahora registra los 24 modelos, cada uno con su propio nombre (`seip-pvpc-forecast-h{h}`) y su propio alias `reference` — cada horizonte es un problema distinto (dataset de entrenamiento distinto, perfil de error distinto), así que "la versión de referencia" tiene que existir por horizonte, no una sola compartida.
+- Reentrenado y confirmado: 24/24 registrados correctamente (`h1` como v2 por ser reentreno, `h2`-`h24` como v1), resultados RMSE/MAE idénticos a la corrida anterior.

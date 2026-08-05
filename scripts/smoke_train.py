@@ -39,6 +39,10 @@ def main() -> None:
         )
     print(f"\n{beats_count}/{len(results)} horizons beat the naive baseline on RMSE")
 
+    print("\n-- Model Registry --")
+    for r in sorted(results, key=lambda x: x["horizon_hours"]):
+        print(f"{r['registered_model_name']} v{r['registered_version']} @ alias 'reference'")
+
 
 if __name__ == "__main__":
     main()
