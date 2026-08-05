@@ -26,7 +26,7 @@ scripts/smoke_train.py, not the fast pytest suite.
 from __future__ import annotations
 
 import math
-from datetime import date
+from datetime import date, datetime, timedelta
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
@@ -38,6 +38,18 @@ TARGET_CALENDAR_COLUMNS = ("target_hour_sin", "target_hour_cos", "target_dow_sin
 FEATURE_COLUMNS = LAG_FEATURE_COLUMNS + TARGET_CALENDAR_COLUMNS
 TARGET_COLUMN = "target_pvpc_eur_mwh"
 BASELINE_COLUMN = "pvpc_lag_24h"  # naive persistence: same hour, 1 day earlier
+
+
+def registered_model_name(horizon_hours: int) -> str:
+    """Model Registry name for one horizon's model.
+
+    Each horizon gets its own registered model, not one shared name — h+1 and
+    h+24 are genuinely different problems (different training set, different
+    error profile), so "the reference version" has to mean something
+    per-horizon for inference.py to load the right model for each hour it
+    predicts.
+    """
+    return f"seip-pvpc-forecast-h{horizon_hours}"
 
 
 def compute_errors(y_true: list[float], y_pred: list[float]) -> list[float]:
@@ -63,12 +75,39 @@ def train_test_split_by_date(rows: list[dict], test_start: date, date_key: str =
     return train, test
 
 
+def compute_target_calendar_features(origin_hour: datetime, horizon_hours: int) -> dict:
+    """Calendar features of the target hour (origin_hour + horizon_hours) — the
+    plain-Python reference for what build_horizon_training_set computes with
+    Spark expressions on `hour_utc + INTERVAL horizon_hours HOURS`.
+
+    Shared by train.py (to build training targets) and inference.py (to score
+    a live prediction) — both must use the identical convention, since a model
+    trained on one and scored with a mismatched one would silently degrade.
+    """
+    target_hour = origin_hour + timedelta(hours=horizon_hours)
+    two_pi = 2 * math.pi
+    hour_angle = two_pi * target_hour.hour / 24
+    # Python weekday(): Mon=0..Sun=6 — must match build_horizon_training_set's
+    # (dayofweek + 5) % 7 conversion from Spark's Sun=1..Sat=7 convention.
+    dow_angle = two_pi * target_hour.weekday() / 7
+    return {
+        "target_hour_sin": math.sin(hour_angle),
+        "target_hour_cos": math.cos(hour_angle),
+        "target_dow_sin": math.sin(dow_angle),
+        "target_dow_cos": math.cos(dow_angle),
+        "target_month": target_hour.month,
+    }
+
+
 def build_horizon_training_set(features_df: "DataFrame", horizon_hours: int) -> "DataFrame":
     """Join each row to its PVPC value `horizon_hours` ahead, with calendar features of that target hour.
 
     Rows missing any required lag/target value are dropped — a model can't
     train on an incomplete row, and LightGBM's native NaN handling isn't
     worth relying on here for a first cut.
+
+    Mirrors compute_target_calendar_features in Spark-native form — see that
+    function's docstring for why the two must stay numerically identical.
     """
     from pyspark.sql import functions as F
 
@@ -165,29 +204,35 @@ def run(
     test_start_date: date,
     horizons: tuple[int, ...] = HORIZONS,
     experiment_name: str = "seip-pvpc-forecast",
-    registered_model_name: str = "seip-pvpc-forecast-h1",
 ) -> list[dict]:
-    """Train + evaluate every horizon, and register the h+1 model as the reference version.
+    """Train + evaluate every horizon, registering each as its own Model Registry
+    entry with a "reference" alias on its version.
 
-    h+1 is registered (not all 24) as a single representative version — the
-    spec's Phase 4 acceptance criterion only requires "at least one version
-    marked as reference" in the Model Registry, and h+1 is the most
-    immediately actionable horizon to demonstrate.
+    All 24 are registered (not just h+1): inference.py needs the reference
+    model for *every* horizon to produce a full next-24h forecast, per the
+    spec's actual deliverable ("genera las predicciones de las próximas 24h
+    en una tabla Gold") — a single representative horizon isn't enough for
+    that, even though it would have satisfied the letter of the "at least
+    one reference version" acceptance criterion on its own.
     """
     import mlflow
 
     features_df = spark.read.format("delta").load(features_path)
+    client = mlflow.tracking.MlflowClient()
 
     results = []
     for horizon_hours in horizons:
         horizon_df = build_horizon_training_set(features_df, horizon_hours)
-        results.append(train_one_horizon(horizon_df, horizon_hours, test_start_date, experiment_name))
+        result = train_one_horizon(horizon_df, horizon_hours, test_start_date, experiment_name)
 
-    h1_result = next(r for r in results if r["horizon_hours"] == 1)
-    model_uri = f"runs:/{h1_result['run_id']}/model"
-    registered = mlflow.register_model(model_uri, registered_model_name)
-    client = mlflow.tracking.MlflowClient()
-    client.set_registered_model_alias(registered_model_name, "reference", registered.version)
+        model_name = registered_model_name(horizon_hours)
+        model_uri = f"runs:/{result['run_id']}/model"
+        registered = mlflow.register_model(model_uri, model_name)
+        client.set_registered_model_alias(model_name, "reference", registered.version)
+        result["registered_model_name"] = model_name
+        result["registered_version"] = registered.version
+
+        results.append(result)
 
     return results
 
