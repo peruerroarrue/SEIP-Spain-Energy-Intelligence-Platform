@@ -73,7 +73,7 @@ Lista viva de lo que falta por implementar o por verificar contra sistemas reale
     - [ ] Cambiar las rutas (`bronze_path`/`silver_path`/etc.) de `data/...` a `abfss://...dfs.core.windows.net/...` — cada función ya las recibe como parámetro, no hardcodeadas, así que el cambio es mecánico
     - [ ] Configurar acceso desde Databricks (service principal + OAuth, o Unity Catalog external location)
   - **2. Cómputo (Databricks)**
-    - [ ] Workspace de Databricks sobre la cuenta de alumno
+    - [x] Workspace creado a mano: `dbw-seip`, región Switzerland North (misma que el storage — sin coste/latencia extra entre regiones), Trial (Premium, 14 días DBU gratis), workspace type Hybrid
     - [ ] Cluster de un solo nodo, auto-terminate ~15 min
     - [ ] Subir el wheel (`seip-0.1.0-py3-none-any.whl`) como librería del cluster/job
   - **3. Secretos**
@@ -83,7 +83,8 @@ Lista viva de lo que falta por implementar o por verificar contra sistemas reale
     - [ ] **Hueco de código real:** `kafka_producer.py`/`streaming_bronze.py` hoy solo soportan `PLAINTEXT` — Confluent Cloud exige `SASL_SSL` con usuario/contraseña (API key/secret). Hay que añadir ese soporte antes de que funcione contra Confluent Cloud
     - [ ] **Decisión de arquitectura sin resolver:** `kafka_producer.run_forever()` es un proceso que nunca termina — no encaja como Job de Databricks normal (que se programa y termina). Decidir dónde vive de verdad (¿VM pequeña siempre encendida? ¿Job de Databricks en modo continuo?)
   - **5. Gobernanza**
-    - [ ] Decisión Unity Catalog vs Hive Metastore — probar contra el workspace real, quedarnos con lo que dé menos fricción (permiso explícito del spec)
+    - [x] **Decisión Unity Catalog vs Hive Metastore: Unity Catalog**, sin fricción — el workspace nuevo (Premium) lo trae activado por defecto (catálogo `dbw_seip` visible desde el primer momento). Sin necesidad de fallback a Hive Metastore
+    - [ ] Conectar el storage (`seipdatalake`) a Unity Catalog: Access Connector for Azure Databricks (managed identity) → rol Storage Blob Data Contributor → Storage Credential en Databricks → External Location por contenedor (bronze/silver/gold)
   - **6. Orquestación**
     - [ ] Job multi-tarea de Databricks: batch REData → streaming Bronze → Silver (×2) → join horario → Gold (KPIs) → features → inference, con su programación
   - **7. MLflow**
