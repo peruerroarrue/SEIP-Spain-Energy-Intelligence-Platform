@@ -45,7 +45,6 @@ Lista viva de lo que falta por implementar o por verificar contra sistemas reale
 - [x] `validations.py` — hecho: motor de reglas genérico (`Rule`/`apply_rules`/`rules_flags_column`), extraído de donde vivía inline en `bronze_to_silver.py`. Las dos reglas ESIOS (precio 0-700€, solar nocturna >10MW) se movieron aquí como `ESIOS_VALIDATION_RULES`; `bronze_to_silver.py` ahora es un wrapper fino que las importa. Mismo comportamiento, sin cambios funcionales — reorganización para que sea reutilizable (p.ej. por reglas de REData en el futuro) y quede lista para envolverse en `@dlt.expect` al migrar a Databricks
 - [x] `validations.py` — probado: 16 tests nuevos (motor genérico + reglas ESIOS movidas) + los 82 tests existentes siguen en verde sin tocarlos (confirma que el refactor no cambió comportamiento) + **reverificado end-to-end contra datos reales** (125.255 filas, mismos flags de `night_solar_generation_above_threshold` que antes del refactor)
 - [x] Decisión Great Expectations vs expectativas nativas DLT — **decidido y documentado**: ninguna de las dos. GE es una capa de infraestructura completa para lo que Spark ya hace en ~15 líneas (permiso explícito del spec para saltárselo si da fricción); `@dlt.expect` no se puede ni probar en local (solo existe dentro de una pipeline real de DLT en Databricks) — aplazado, no descartado: la lógica ya está escrita de forma agnóstica al runtime, lista para envolverse cuando migremos
-- [ ] Decisión Great Expectations vs expectativas nativas DLT — pendiente de evaluar
 
 ## ML
 
