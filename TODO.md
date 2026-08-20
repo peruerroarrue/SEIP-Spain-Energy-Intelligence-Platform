@@ -69,7 +69,7 @@ Lista viva de lo que falta por implementar o por verificar contra sistemas reale
 - [x] PySpark local funcionando en esta máquina: usar JAVA_HOME=`C:\java-tools\jdk-11.0.32+9` (JDK 17/21 del sistema fallan, ver DECISIONS.md)
 - [ ] **PENDIENTE GRANDE: migrar de local a Azure real (empezado 2026-08-05, cuenta Azure for Students).** Todo lo construido hasta ahora (`data/bronze`, `data/silver`, `data/gold`, MLflow) vive en el disco local, no en ADLS Gen2/Databricks — decisión consciente para iterar gratis y rápido, pero el entregable final lo exige de verdad (spec sección 4.4, memoria, vídeo de demo). Checklist detallado:
   - **1. Almacenamiento (ADLS Gen2)**
-    - [ ] Crear cuenta de storage + contenedores (o un contenedor con carpetas `bronze/`, `silver/`, `gold/`)
+    - [x] Cuenta de storage creada a mano en el portal: resource group `rg-seip`, storage account `seipdatalake` (ADLS Gen2, hierarchical namespace activado), contenedores `bronze`/`silver`/`gold`
     - [ ] Cambiar las rutas (`bronze_path`/`silver_path`/etc.) de `data/...` a `abfss://...dfs.core.windows.net/...` — cada función ya las recibe como parámetro, no hardcodeadas, así que el cambio es mecánico
     - [ ] Configurar acceso desde Databricks (service principal + OAuth, o Unity Catalog external location)
   - **2. Cómputo (Databricks)**

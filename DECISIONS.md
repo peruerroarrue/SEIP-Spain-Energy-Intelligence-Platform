@@ -155,3 +155,13 @@ Al diseñar `inference.py` (que debe generar las 24 predicciones siguientes seg�
 - `python -m build --wheel` genera `seip-0.1.0-py3-none-any.whl` con los 4 subpaquetes (`ingestion`/`quality`/`transform`/`ml`) incluidos correctamente.
 - Instalado en un venv nuevo **fuera del proyecto** (sin ninguno de los extras `dev`/`spark`/`ml`/`streaming`) — solo arrastra `requests` como dependencia. Confirma en la práctica el diseño desde el scaffolding inicial: la lógica de negocio pura se puede instalar y usar sin PySpark/MLflow/confluent-kafka.
 - Verificado que los módulos representativos de los 4 subpaquetes importan y ejecutan de verdad en ese entorno limpio (`kafka_producer.INDICATORS`, `quality.validations.ESIOS_VALIDATION_RULES`, `ml.train.registered_model_name`, etc.), no solo que el `pip install` no lanzara error.
+
+## 2026-08-05 — Empieza la migración a Azure: storage ADLS Gen2 creado
+
+- **Decisión de flujo de trabajo:** Peru crea los recursos de Azure/Databricks a mano en el portal (control directo sobre su propia cuenta), y me reporta los nombres/estructura reales para que yo adapte el código en consecuencia — no aprovisiono nada por CLI ni automatizado.
+- Storage account real creado: **resource group `rg-seip`, storage account `seipdatalake`** (ADLS Gen2, hierarchical namespace activado), contenedores `bronze`/`silver`/`gold` — mapea 1:1 con las tres capas del Medallion.
+- Rutas ABFSS resultantes (para cuando se conecte el acceso desde Databricks):
+  - `abfss://bronze@seipdatalake.dfs.core.windows.net/`
+  - `abfss://silver@seipdatalake.dfs.core.windows.net/`
+  - `abfss://gold@seipdatalake.dfs.core.windows.net/`
+- Todavía sin cambios en el código: las funciones ya reciben la ruta como parámetro (`bronze_path`, `silver_path`, etc.), así que no hace falta tocar nada hasta que el acceso Databricks→storage esté configurado y se pueda probar de verdad — cambiar las rutas sin poder verificarlas sería documentar algo no probado.
