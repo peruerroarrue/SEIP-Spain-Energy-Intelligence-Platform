@@ -74,7 +74,7 @@ Lista viva de lo que falta por implementar o por verificar contra sistemas reale
     - [ ] Configurar acceso desde Databricks (service principal + OAuth, o Unity Catalog external location)
   - **2. Cómputo (Databricks)**
     - [x] Workspace creado a mano: `dbw-seip`, región Switzerland North (misma que el storage — sin coste/latencia extra entre regiones), Trial (Premium, 14 días DBU gratis), workspace type Hybrid
-    - [ ] Cluster de un solo nodo, auto-terminate ~15 min
+    - [x] Cluster creado: `cluster-seip-dev`, single node, **DBR 15.4 LTS (Spark 3.5.x)** — elegido deliberadamente en vez del 17.3 LTS por defecto (Spark 4.0) para que coincida con lo ya validado en local (`pyproject.toml` fija `pyspark>=3.5,<3.6`), Photon desactivado (coste extra sin beneficio a nuestro volumen de datos), auto-terminate 15 min, `Standard_D4ds_v4`
     - [ ] Subir el wheel (`seip-0.1.0-py3-none-any.whl`) como librería del cluster/job
   - **3. Secretos**
     - [ ] Mover el token de ESIOS de `token.env` local a Databricks Secrets (secret scope) — nada de ficheros `.env` en la nube
