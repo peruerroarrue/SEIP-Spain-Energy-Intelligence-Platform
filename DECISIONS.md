@@ -190,3 +190,5 @@ Confirma la cadena completa conectada de verdad: cluster (DBR 15.4/Spark 3.5.x) 
 **`bronze_to_silver.run_esios()` contra ese Bronze real** (streaming con checkpoint en `abfss://silver@.../_checkpoints/esios_silver/` — carpeta de metadata de Spark dentro del propio contenedor `silver`): tipado, `validation_flags` correcto, sin cambios de código.
 
 **`bronze_to_silver.run_esios_hourly_join()`**: las 4 series (PVPC/SPOT/eólica/solar) unidas correctamente en tabla ancha por hora, sin cambios de código.
+
+**`silver_to_gold.run_price_kpis()` y `run_renewable_penetration_kpi()`**: con 14 días reales, por primera vez se puede ver el promedio de `price_by_hour_of_day` combinando **varios días distintos** para la misma hora (en local, con 1 sola hora de datos de prueba, no se llegó a ejercitar esa rama). `renewable_share` cambia correctamente hora a hora. Sin cambios de código.
