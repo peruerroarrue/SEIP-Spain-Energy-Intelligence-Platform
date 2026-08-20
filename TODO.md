@@ -84,7 +84,7 @@ Lista viva de lo que falta por implementar o por verificar contra sistemas reale
     - [ ] **Decisión de arquitectura sin resolver:** `kafka_producer.run_forever()` es un proceso que nunca termina — no encaja como Job de Databricks normal (que se programa y termina). Decidir dónde vive de verdad (¿VM pequeña siempre encendida? ¿Job de Databricks en modo continuo?)
   - **5. Gobernanza**
     - [x] **Decisión Unity Catalog vs Hive Metastore: Unity Catalog**, sin fricción — el workspace nuevo (Premium) lo trae activado por defecto (catálogo `dbw_seip` visible desde el primer momento). Sin necesidad de fallback a Hive Metastore
-    - [ ] Conectar el storage (`seipdatalake`) a Unity Catalog: Access Connector for Azure Databricks (managed identity) → rol Storage Blob Data Contributor → Storage Credential en Databricks → External Location por contenedor (bronze/silver/gold)
+    - [x] **Storage conectado a Unity Catalog**: Access Connector `ac-seip` (managed identity) con rol Storage Blob Data Contributor sobre `seipdatalake` → Storage Credential `cred-seip` → 3 External Locations (`ext-bronze`/`ext-silver`/`ext-gold`), test de conexión en verde (Read/Write/List/Delete/Path Exists) en las tres. "File Events" falla mostrado pero es opcional (Auto Loader, no lo usamos) — no bloquea nada
   - **6. Orquestación**
     - [ ] Job multi-tarea de Databricks: batch REData → streaming Bronze → Silver (×2) → join horario → Gold (KPIs) → features → inference, con su programación
   - **7. MLflow**
