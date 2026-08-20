@@ -77,7 +77,7 @@ Lista viva de lo que falta por implementar o por verificar contra sistemas reale
     - [x] Cluster creado: `cluster-seip-dev`, single node, **DBR 15.4 LTS (Spark 3.5.x)** — elegido deliberadamente en vez del 17.3 LTS por defecto (Spark 4.0) para que coincida con lo ya validado en local (`pyproject.toml` fija `pyspark>=3.5,<3.6`), Photon desactivado (coste extra sin beneficio a nuestro volumen de datos), auto-terminate 15 min, `Standard_D4ds_v4`
     - [x] Wheel (`seip-0.1.0-py3-none-any.whl`) instalado en `cluster-seip-dev`, junto con `mlflow`/`lightgbm`/`scikit-learn`/`pandas` vía PyPI (el wheel por sí solo solo trae `requests`, confirmado en la verificación de la Fase 5). Paquete Maven de Kafka pendiente hasta probar la parte de streaming
   - **3. Secretos**
-    - [ ] Mover el token de ESIOS de `token.env` local a Databricks Secrets (secret scope) — nada de ficheros `.env` en la nube
+    - [x] Token de ESIOS movido a Databricks Secrets: Key Vault `kv-seip` (secreto `esios-api-token`, tras arreglar un permiso RBAC — ser Owner de la suscripción no da acceso automático a los *datos* de un Key Vault en modo RBAC, hubo que asignarse el rol "Key Vault Administrator" explícitamente) enlazado como secret scope `seip-secrets` en Databricks vía la URL especial `#secrets/createScope`
   - **4. Streaming (Kafka) — dos decisiones reales pendientes, no solo config**
     - [ ] Configurar Confluent Cloud real (Databricks no puede alcanzar el Docker local)
     - [ ] **Hueco de código real:** `kafka_producer.py`/`streaming_bronze.py` hoy solo soportan `PLAINTEXT` — Confluent Cloud exige `SASL_SSL` con usuario/contraseña (API key/secret). Hay que añadir ese soporte antes de que funcione contra Confluent Cloud
