@@ -192,3 +192,7 @@ Confirma la cadena completa conectada de verdad: cluster (DBR 15.4/Spark 3.5.x) 
 **`bronze_to_silver.run_esios_hourly_join()`**: las 4 series (PVPC/SPOT/eólica/solar) unidas correctamente en tabla ancha por hora, sin cambios de código.
 
 **`silver_to_gold.run_price_kpis()` y `run_renewable_penetration_kpi()`**: con 14 días reales, por primera vez se puede ver el promedio de `price_by_hour_of_day` combinando **varios días distintos** para la misma hora (en local, con 1 sola hora de datos de prueba, no se llegó a ejercitar esa rama). `renewable_share` cambia correctamente hora a hora. Sin cambios de código.
+
+**`ml.features.run()` con `renewable_share` incluido**: tabla de features completa contra datos reales de Azure — los tres lags de PVPC (1h/24h/168h, este último ya con datos de sobra gracias a los 14 días) y `renewable_share` poblados correctamente. Sin cambios de código.
+
+**Resumen de la sesión de migración (2026-08-20):** toda la cadena de transformación (Bronze batch y streaming-vía-backfill → Silver ESIOS y REData → join horario → Gold KPIs → features) verificada de punta a punta contra Azure real, sin tener que tocar una sola línea de código — confirma que el diseño de "rutas siempre como parámetro" pagó. Quedan pendientes explícitos para la próxima sesión: Kafka/Confluent Cloud (las dos decisiones ya anotadas: soporte SASL + dónde vive el producer), `train.py`/`inference.py` contra Azure, el Job multi-tarea de Databricks, y el soak test de 48h real.

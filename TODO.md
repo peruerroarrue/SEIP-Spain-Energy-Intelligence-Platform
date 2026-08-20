@@ -86,9 +86,11 @@ Lista viva de lo que falta por implementar o por verificar contra sistemas reale
     - [x] **Decisión Unity Catalog vs Hive Metastore: Unity Catalog**, sin fricción — el workspace nuevo (Premium) lo trae activado por defecto (catálogo `dbw_seip` visible desde el primer momento). Sin necesidad de fallback a Hive Metastore
     - [x] **Storage conectado a Unity Catalog**: Access Connector `ac-seip` (managed identity) con rol Storage Blob Data Contributor sobre `seipdatalake` → Storage Credential `cred-seip` → 3 External Locations (`ext-bronze`/`ext-silver`/`ext-gold`), test de conexión en verde (Read/Write/List/Delete/Path Exists) en las tres. "File Events" falla mostrado pero es opcional (Auto Loader, no lo usamos) — no bloquea nada
   - **6. Orquestación**
-    - [ ] Job multi-tarea de Databricks: batch REData → streaming Bronze → Silver (×2) → join horario → Gold (KPIs) → features → inference, con su programación
+    - [x] **Cada etapa probada de verdad contra Azure real, celda a celda en notebook** (sesión 2026-08-20): `batch_job.run` (REData→Bronze), `bronze_to_silver.run_redata`, `bronze_to_silver.run_esios` (streaming, vía datos de `historical_backfill` para no depender aún de Kafka), `run_esios_hourly_join`, `silver_to_gold.run_price_kpis`/`run_renewable_penetration_kpi`, `ml.features.run` — **todas sin cambiar una sola línea de código**, solo pasando rutas `abfss://`
+    - [ ] Falta probar `train.py`/`inference.py` contra Azure (solo 14 días de datos ahí, no reentrenar en serio — validar que el código corre, no la calidad del modelo)
+    - [ ] Falta envolver todo esto en un **Job multi-tarea programado** de Databricks (de momento son celdas de notebook ejecutadas a mano) — pendiente hasta resolver Kafka/streaming Bronze real, que es la pieza que falta en la cadena
   - **7. MLflow**
-    - [ ] Verificar que el tracking/registro funciona sin cambios al correr dentro de Databricks (usa llamadas estándar de MLflow, debería ser automático)
+    - [ ] Verificar que el tracking/registro funciona sin cambios al correr dentro de Databricks (usa llamadas estándar de MLflow, debería ser automático) — pendiente, ligado a probar `train.py` arriba
   - **8. Lo que NO se migra**
     - `docker-compose.yml`/Kafka local se queda como entorno de desarrollo/respaldo (previsto así desde el spec)
     - El workaround del JDK 11 es cosa de Windows — irrelevante en Databricks (Linux)
