@@ -64,18 +64,33 @@ Lista viva de lo que falta por implementar o por verificar contra sistemas reale
 
 - [x] Repo scaffolding, `pyproject.toml`, CI `tests.yml`
 - [x] Branching GitHub Flow + protección de rama `main` (require PR + pytest check)
-- [ ] `.github/workflows/batch-ingestion.yml` (cron diario) — pospuesto hasta que exista un batch job real
-- [ ] Decisión Unity Catalog vs Hive Metastore — pendiente de probar en el workspace de Databricks
-- [ ] Confluent Cloud vs Kafka local — configurar y documentar en DECISIONS.md
+- [ ] `.github/workflows/batch-ingestion.yml` (cron diario) — pospuesto hasta que exista un batch job real; a reconsiderar si hace falta una vez el Job de Databricks tenga su propio scheduler
 - [x] **Wheel verificado en entorno limpio** (criterio de aceptación Fase 5): `python -m build --wheel` genera `seip-0.1.0-py3-none-any.whl` con los 4 subpaquetes (`ingestion`/`quality`/`transform`/`ml`) correctamente incluidos. Instalado en un venv nuevo fuera del proyecto (sin ningún extra) — solo arrastra `requests` como dependencia, confirma que la separación lógica-pura/extras pesados funciona. Módulos representativos de los 4 subpaquetes importan y ejecutan correctamente (`INDICATORS`, `ESIOS_VALIDATION_RULES`, `registered_model_name`, etc.). Pendiente real distinto: subirlo como librería a un cluster de Databricks — eso es parte de la migración a Azure, no de este criterio
 - [x] PySpark local funcionando en esta máquina: usar JAVA_HOME=`C:\java-tools\jdk-11.0.32+9` (JDK 17/21 del sistema fallan, ver DECISIONS.md)
-- [ ] **PENDIENTE GRANDE (anotado 2026-08-05): migrar de local a Azure real.** Todo lo construido hasta ahora (`data/bronze`, `data/silver`, `data/gold`, MLflow) vive en el disco local, no en ADLS Gen2/Databricks — decisión consciente para iterar gratis y rápido, pero el entregable final lo exige de verdad (spec sección 4.4, memoria, vídeo de demo). Pasos:
-  - Crear cuenta ADLS Gen2 (contenedores bronze/silver/gold)
-  - Cambiar las rutas (`bronze_path`/`silver_path`/etc.) de `data/...` a `abfss://...dfs.core.windows.net/...` — cada función ya las recibe como parámetro, no hardcodeadas, así que el cambio es mecánico
-  - Levantar workspace de Databricks, cluster de un solo nodo con auto-terminate, acceso al storage
-  - Crear los Jobs de Databricks que orquesten lo ya construido (batch, streaming, Silver ×2, join horario, Gold, features, train, inference) — ya lo conceptualizamos como un Job multi-tarea al hablar de `bronze_to_silver.py`
-  - Decidir Kafka real: Confluent Cloud (para que Databricks lo alcance) vs replantear el streaming
-  - Dejarlo para el final, una vez cerrada la lógica pendiente (`% renovable`, `validations.py`) — minimiza tiempo de cluster encendido y coste
+- [ ] **PENDIENTE GRANDE: migrar de local a Azure real (empezado 2026-08-05, cuenta Azure for Students).** Todo lo construido hasta ahora (`data/bronze`, `data/silver`, `data/gold`, MLflow) vive en el disco local, no en ADLS Gen2/Databricks — decisión consciente para iterar gratis y rápido, pero el entregable final lo exige de verdad (spec sección 4.4, memoria, vídeo de demo). Checklist detallado:
+  - **1. Almacenamiento (ADLS Gen2)**
+    - [ ] Crear cuenta de storage + contenedores (o un contenedor con carpetas `bronze/`, `silver/`, `gold/`)
+    - [ ] Cambiar las rutas (`bronze_path`/`silver_path`/etc.) de `data/...` a `abfss://...dfs.core.windows.net/...` — cada función ya las recibe como parámetro, no hardcodeadas, así que el cambio es mecánico
+    - [ ] Configurar acceso desde Databricks (service principal + OAuth, o Unity Catalog external location)
+  - **2. Cómputo (Databricks)**
+    - [ ] Workspace de Databricks sobre la cuenta de alumno
+    - [ ] Cluster de un solo nodo, auto-terminate ~15 min
+    - [ ] Subir el wheel (`seip-0.1.0-py3-none-any.whl`) como librería del cluster/job
+  - **3. Secretos**
+    - [ ] Mover el token de ESIOS de `token.env` local a Databricks Secrets (secret scope) — nada de ficheros `.env` en la nube
+  - **4. Streaming (Kafka) — dos decisiones reales pendientes, no solo config**
+    - [ ] Configurar Confluent Cloud real (Databricks no puede alcanzar el Docker local)
+    - [ ] **Hueco de código real:** `kafka_producer.py`/`streaming_bronze.py` hoy solo soportan `PLAINTEXT` — Confluent Cloud exige `SASL_SSL` con usuario/contraseña (API key/secret). Hay que añadir ese soporte antes de que funcione contra Confluent Cloud
+    - [ ] **Decisión de arquitectura sin resolver:** `kafka_producer.run_forever()` es un proceso que nunca termina — no encaja como Job de Databricks normal (que se programa y termina). Decidir dónde vive de verdad (¿VM pequeña siempre encendida? ¿Job de Databricks en modo continuo?)
+  - **5. Gobernanza**
+    - [ ] Decisión Unity Catalog vs Hive Metastore — probar contra el workspace real, quedarnos con lo que dé menos fricción (permiso explícito del spec)
+  - **6. Orquestación**
+    - [ ] Job multi-tarea de Databricks: batch REData → streaming Bronze → Silver (×2) → join horario → Gold (KPIs) → features → inference, con su programación
+  - **7. MLflow**
+    - [ ] Verificar que el tracking/registro funciona sin cambios al correr dentro de Databricks (usa llamadas estándar de MLflow, debería ser automático)
+  - **8. Lo que NO se migra**
+    - `docker-compose.yml`/Kafka local se queda como entorno de desarrollo/respaldo (previsto así desde el spec)
+    - El workaround del JDK 11 es cosa de Windows — irrelevante en Databricks (Linux)
 
 ## Documentación / entrega
 
