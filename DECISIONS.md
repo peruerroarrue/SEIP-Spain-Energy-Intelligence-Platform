@@ -148,3 +148,10 @@ Al diseñar `inference.py` (que debe generar las 24 predicciones siguientes seg�
   - **Cero errores ni tracebacks** en todo el log
   - Bronze (`data/bronze/esios`) creció de forma continua durante toda la prueba (~+500 filas, consistente con los 100 ciclos), confirmando que los datos llegaban sin huecos
 - **Pendiente real, anotado explícitamente:** las 48h completas, y contra Confluent Cloud (no Docker local) — ambas cosas solo tienen sentido una vez desplegado en la infraestructura real, parte de la migración a Azure/Databricks ya anotada en TODO.md.
+
+## 2026-08-05 — Wheel verificado en entorno limpio (criterio de aceptación Fase 5)
+
+- Distinción importante hecha explícita con el usuario antes de empezar: el criterio de aceptación pide instalar el wheel en un **entorno Python limpio**, no necesariamente en Databricks — subirlo como librería a un cluster real es un paso aparte, parte de la migración a Azure ya aparcada, no de esta verificación.
+- `python -m build --wheel` genera `seip-0.1.0-py3-none-any.whl` con los 4 subpaquetes (`ingestion`/`quality`/`transform`/`ml`) incluidos correctamente.
+- Instalado en un venv nuevo **fuera del proyecto** (sin ninguno de los extras `dev`/`spark`/`ml`/`streaming`) — solo arrastra `requests` como dependencia. Confirma en la práctica el diseño desde el scaffolding inicial: la lógica de negocio pura se puede instalar y usar sin PySpark/MLflow/confluent-kafka.
+- Verificado que los módulos representativos de los 4 subpaquetes importan y ejecutan de verdad en ese entorno limpio (`kafka_producer.INDICATORS`, `quality.validations.ESIOS_VALIDATION_RULES`, `ml.train.registered_model_name`, etc.), no solo que el `pip install` no lanzara error.

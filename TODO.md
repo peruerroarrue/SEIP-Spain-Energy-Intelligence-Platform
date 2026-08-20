@@ -67,7 +67,7 @@ Lista viva de lo que falta por implementar o por verificar contra sistemas reale
 - [ ] `.github/workflows/batch-ingestion.yml` (cron diario) — pospuesto hasta que exista un batch job real
 - [ ] Decisión Unity Catalog vs Hive Metastore — pendiente de probar en el workspace de Databricks
 - [ ] Confluent Cloud vs Kafka local — configurar y documentar en DECISIONS.md
-- [ ] Verificar que el wheel se instala limpio en un entorno nuevo (criterio de aceptación Fase 5)
+- [x] **Wheel verificado en entorno limpio** (criterio de aceptación Fase 5): `python -m build --wheel` genera `seip-0.1.0-py3-none-any.whl` con los 4 subpaquetes (`ingestion`/`quality`/`transform`/`ml`) correctamente incluidos. Instalado en un venv nuevo fuera del proyecto (sin ningún extra) — solo arrastra `requests` como dependencia, confirma que la separación lógica-pura/extras pesados funciona. Módulos representativos de los 4 subpaquetes importan y ejecutan correctamente (`INDICATORS`, `ESIOS_VALIDATION_RULES`, `registered_model_name`, etc.). Pendiente real distinto: subirlo como librería a un cluster de Databricks — eso es parte de la migración a Azure, no de este criterio
 - [x] PySpark local funcionando en esta máquina: usar JAVA_HOME=`C:\java-tools\jdk-11.0.32+9` (JDK 17/21 del sistema fallan, ver DECISIONS.md)
 - [ ] **PENDIENTE GRANDE (anotado 2026-08-05): migrar de local a Azure real.** Todo lo construido hasta ahora (`data/bronze`, `data/silver`, `data/gold`, MLflow) vive en el disco local, no en ADLS Gen2/Databricks — decisión consciente para iterar gratis y rápido, pero el entregable final lo exige de verdad (spec sección 4.4, memoria, vídeo de demo). Pasos:
   - Crear cuenta ADLS Gen2 (contenedores bronze/silver/gold)
