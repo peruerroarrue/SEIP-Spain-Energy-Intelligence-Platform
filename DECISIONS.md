@@ -186,3 +186,5 @@ Confirma la cadena completa conectada de verdad: cluster (DBR 15.4/Spark 3.5.x) 
 **`bronze_to_silver.run_redata()` contra ese Bronze real**, también sin cambios: columnas tipadas, UTC normalizado, `percentage` presente — idéntico a lo verificado en local.
 
 **Rodeo para desbloquear la cadena de ESIOS sin resolver todavía Kafka/Confluent Cloud:** `historical_backfill.py` no depende de Kafka (llama a la API de ESIOS directamente), así que sirve para meter datos reales de ESIOS en el Bronze de Azure y seguir probando Silver/join/Gold/features sin bloquearse en las dos decisiones pendientes de streaming. Ejecutado para 14 días (2026-08-06 a 2026-08-20): **9.748 filas**, coherente con la mezcla de granularidades esperada (PVPC hora + SPOT 15min + eólica/solar 5min).
+
+**`bronze_to_silver.run_esios()` contra ese Bronze real** (streaming con checkpoint en `abfss://silver@.../_checkpoints/esios_silver/` — carpeta de metadata de Spark dentro del propio contenedor `silver`): tipado, `validation_flags` correcto, sin cambios de código.
