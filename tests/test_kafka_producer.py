@@ -64,3 +64,53 @@ def test_poll_once_survives_esios_failure_and_keeps_due(monkeypatch):
 
     assert sent == []
     assert last_run == {}  # not updated on failure, so it stays "due" and retries next tick
+
+
+class _FakeProducer:
+    """Stand-in for confluent_kafka.Producer, so run_once stays testable
+    without the `streaming` extra installed (same reasoning as poll_once's
+    fake `send` in the tests above)."""
+
+    def __init__(self):
+        self.produced = []
+        self.flushed = False
+
+    def produce(self, topic, key=None, value=None):
+        self.produced.append((topic, key, value))
+
+    def poll(self, timeout):
+        pass
+
+    def flush(self):
+        self.flushed = True
+
+
+def test_run_once_fetches_every_indicator_and_flushes(monkeypatch):
+    fake_producer = _FakeProducer()
+    monkeypatch.setattr(kp, "create_producer", lambda *args, **kwargs: fake_producer)
+
+    def fake_fetch(indicator_id, start_date, end_date, geo_id, api_key):
+        return [{"datetime_utc": "2026-07-30T11:00:00Z", "value": 1.0, "geo_id": geo_id}]
+
+    monkeypatch.setattr(kp, "fetch_indicator_values", fake_fetch)
+
+    kp.run_once(api_key="key", bootstrap_servers="localhost:9092")
+
+    # empty last_run every call -> every indicator is due, unlike run_forever's persisted state
+    assert len(fake_producer.produced) == len(kp.INDICATORS)
+    assert fake_producer.flushed is True
+
+
+def test_run_once_survives_esios_failure(monkeypatch):
+    fake_producer = _FakeProducer()
+    monkeypatch.setattr(kp, "create_producer", lambda *args, **kwargs: fake_producer)
+
+    def failing_fetch(*args, **kwargs):
+        raise EsiosClientError("transient")
+
+    monkeypatch.setattr(kp, "fetch_indicator_values", failing_fetch)
+
+    kp.run_once(api_key="key", bootstrap_servers="localhost:9092")  # must not raise
+
+    assert fake_producer.produced == []
+    assert fake_producer.flushed is True

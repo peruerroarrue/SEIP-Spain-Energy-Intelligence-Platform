@@ -124,10 +124,58 @@ def run_forever(api_key: str, bootstrap_servers: str, **producer_config) -> None
         time.sleep(TICK_SECONDS)
 
 
+def run_once(api_key: str, bootstrap_servers: str, **producer_config) -> None:
+    """Run a single tick and exit.
+
+    Meant to be scheduled externally (e.g. every 5-15 min as a Databricks Job
+    task) instead of running run_forever() as an always-on process — an
+    infinite loop doesn't fit the Jobs model (it would keep a paid cluster
+    running forever) and needs its own always-on host, which this project
+    doesn't otherwise need. Every call starts with an empty last_run, so
+    every indicator is due each time — same overlapping-window design as
+    run_forever, relying on the Silver-layer dedup downstream for the
+    resulting duplicates rather than in-process state carried across runs.
+    """
+    producer = create_producer(bootstrap_servers, **producer_config)
+
+    def send(topic: str, key: bytes, value: bytes) -> None:
+        producer.produce(topic, key=key, value=value)
+        producer.poll(0)
+
+    now = datetime.now(timezone.utc)
+    poll_once(INDICATORS, last_run={}, now=now, api_key=api_key, send=send)
+    producer.flush()
+
+
+def _sasl_config_from_env() -> dict:
+    """Extra confluent_kafka Producer config for SASL_SSL (Confluent Cloud), from
+    KAFKA_SASL_USERNAME/PASSWORD/MECHANISM env vars. Empty dict (no SASL) if
+    those aren't set — matches local PLAINTEXT Kafka needing no extra config.
+    """
+    username = os.environ.get("KAFKA_SASL_USERNAME")
+    password = os.environ.get("KAFKA_SASL_PASSWORD")
+    if not username or not password:
+        return {}
+    return {
+        "sasl.mechanisms": os.environ.get("KAFKA_SASL_MECHANISM", "PLAIN"),
+        "sasl.username": username,
+        "sasl.password": password,
+    }
+
+
 if __name__ == "__main__":
+    import sys
+
     logging.basicConfig(level=logging.INFO)
-    run_forever(
+
+    common_kwargs = dict(
         api_key=os.environ["ESIOS_API_TOKEN"],
         bootstrap_servers=os.environ.get("KAFKA_BOOTSTRAP_SERVERS", "localhost:9092"),
         security_protocol=os.environ.get("KAFKA_SECURITY_PROTOCOL", "PLAINTEXT"),
+        **_sasl_config_from_env(),
     )
+
+    if len(sys.argv) > 1 and sys.argv[1] == "once":
+        run_once(**common_kwargs)
+    else:
+        run_forever(**common_kwargs)
