@@ -12,6 +12,7 @@ Bronze table, even though both share the same generic schema.
 
 from __future__ import annotations
 
+import os
 from datetime import datetime, timezone
 from typing import TYPE_CHECKING
 
@@ -71,6 +72,7 @@ def run(
     bootstrap_servers: str,
     bronze_path: str,
     checkpoint_path: str,
+    **kafka_options: str,
 ) -> "StreamingQuery":
     """Consume the 4 ESIOS topics once (availableNow) and append new records to Bronze.
 
@@ -78,14 +80,21 @@ def run(
     whatever is currently in Kafka and stops — meant to be run on a schedule
     (e.g. every 15-30 min via a Databricks Job), not kept running 24/7, given
     this project's limited Azure credit budget.
+
+    kafka_options passes through extra `kafka.*` reader options (e.g.
+    kafka.security.protocol / kafka.sasl.mechanism / kafka.sasl.jaas.config
+    for Confluent Cloud's SASL_SSL). Empty by default, so local PLAINTEXT
+    Kafka needs no change — see the SASL setup in __main__ below.
     """
-    df = (
+    reader = (
         spark.readStream.format("kafka")
         .option("kafka.bootstrap.servers", bootstrap_servers)
         .option("subscribe", ",".join(topics()))
         .option("startingOffsets", "earliest")
-        .load()
     )
+    for key, value in kafka_options.items():
+        reader = reader.option(key, value)
+    df = reader.load()
 
     query = (
         df.writeStream.foreachBatch(lambda batch_df, batch_id: _process_batch(batch_df, batch_id, bronze_path))
@@ -97,9 +106,28 @@ def run(
     return query
 
 
-if __name__ == "__main__":
-    import os
+def _sasl_kafka_options_from_env() -> dict:
+    """Extra `kafka.*` readStream options for SASL_SSL (Confluent Cloud), from
+    KAFKA_SASL_USERNAME/PASSWORD/MECHANISM env vars. Empty dict (no SASL) if
+    those aren't set — matches local PLAINTEXT Kafka needing no extra options.
+    """
+    username = os.environ.get("KAFKA_SASL_USERNAME")
+    password = os.environ.get("KAFKA_SASL_PASSWORD")
+    if not username or not password:
+        return {}
+    mechanism = os.environ.get("KAFKA_SASL_MECHANISM", "PLAIN")
+    jaas_config = (
+        "org.apache.kafka.common.security.plain.PlainLoginModule required "
+        f'username="{username}" password="{password}";'
+    )
+    return {
+        "kafka.security.protocol": "SASL_SSL",
+        "kafka.sasl.mechanism": mechanism,
+        "kafka.sasl.jaas.config": jaas_config,
+    }
 
+
+if __name__ == "__main__":
     from seip.ingestion.spark_session import build_local_spark_session
 
     spark_session = build_local_spark_session("seip-streaming-bronze", with_kafka=True)
@@ -108,4 +136,5 @@ if __name__ == "__main__":
         bootstrap_servers=os.environ.get("KAFKA_BOOTSTRAP_SERVERS", "localhost:9092"),
         bronze_path="data/bronze/esios",
         checkpoint_path="data/checkpoints/esios_bronze",
+        **_sasl_kafka_options_from_env(),
     )
