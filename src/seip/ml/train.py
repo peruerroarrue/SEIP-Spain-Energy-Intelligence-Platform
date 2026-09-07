@@ -140,6 +140,7 @@ def train_one_horizon(horizon_df: "DataFrame", horizon_hours: int, test_start_da
     import mlflow
     import mlflow.lightgbm
     from lightgbm import LGBMRegressor
+    from mlflow.models import infer_signature
 
     pdf = horizon_df.toPandas()
     train_pdf = pdf[pdf["hour_utc"].dt.date < test_start_date]
@@ -182,7 +183,13 @@ def train_one_horizon(horizon_df: "DataFrame", horizon_hours: int, test_start_da
         # LGBMRegressor implements the sklearn estimator interface. The
         # dedicated lightgbm flavor uses LightGBM's native serialization and
         # doesn't hit that check.
-        mlflow.lightgbm.log_model(model, name="model")
+        #
+        # signature/input_example are required to register into a Unity
+        # Catalog model registry (validates input/output schema on load) -
+        # a legacy/workspace registry doesn't enforce this, which is why this
+        # was only caught when registering for real on a UC-enabled workspace.
+        signature = infer_signature(x_train, model.predict(x_train))
+        mlflow.lightgbm.log_model(model, name="model", signature=signature, input_example=x_train.head(5))
         run_id = mlflow.active_run().info.run_id
 
     return {
