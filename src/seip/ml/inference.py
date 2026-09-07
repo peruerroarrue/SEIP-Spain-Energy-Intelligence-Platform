@@ -86,6 +86,12 @@ def run(
         model = load_reference_model(horizon_hours)
         feature_row = build_feature_row(latest_row, horizon_hours)
         x = pd.DataFrame([feature_row])[list(FEATURE_COLUMNS)]
+        # target_month comes out of compute_target_calendar_features as a plain
+        # Python int, which pandas infers as int64 in a single-row DataFrame.
+        # The model's signature (inferred in train.py from Spark's IntegerType
+        # target_month, via toPandas()) requires int32 - a UC-registered model
+        # enforces that strictly at predict() time, unlike the legacy registry.
+        x["target_month"] = x["target_month"].astype("int32")
         predicted_value = float(model.predict(x)[0])
         forecast_rows.append(build_forecast_row(origin_hour, horizon_hours, predicted_value))
 
