@@ -13,10 +13,18 @@ confluent_kafka), but still needs a SparkSession to construct DBUtils and
 read secrets.
 """
 
+import logging
+
 from pyspark.dbutils import DBUtils
 from pyspark.sql import SparkSession
 
 from seip.ingestion.kafka_producer import run_once
+
+# kafka_producer.poll_once logs a per-indicator "published N values" line via
+# the standard logging module - without a configured handler/level, a fresh
+# script run swallows it silently (this is what __main__ blocks do locally
+# too). Needed for this task's Job run to show anything in its Output tab.
+logging.basicConfig(level=logging.INFO)
 
 spark = SparkSession.builder.getOrCreate()
 dbutils = DBUtils(spark)
@@ -35,3 +43,5 @@ run_once(
         "sasl.password": sasl_password,
     },
 )
+
+print("producer tick done")

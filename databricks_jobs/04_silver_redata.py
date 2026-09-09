@@ -9,8 +9,9 @@ from seip.transform.bronze_to_silver import run_redata
 
 spark = SparkSession.builder.getOrCreate()
 
-run_redata(
+silver_df = run_redata(
     spark,
     bronze_path="abfss://bronze@seipdatalake.dfs.core.windows.net/redata",
     silver_path="abfss://silver@seipdatalake.dfs.core.windows.net/redata",
 )
+print(f"silver/redata total rows: {silver_df.count()}")
