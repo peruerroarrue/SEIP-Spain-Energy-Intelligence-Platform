@@ -9,8 +9,9 @@ from seip.transform.bronze_to_silver import run_esios_hourly_join
 
 spark = SparkSession.builder.getOrCreate()
 
-run_esios_hourly_join(
+hourly_df = run_esios_hourly_join(
     spark,
     silver_path="abfss://silver@seipdatalake.dfs.core.windows.net/esios",
     output_path="abfss://silver@seipdatalake.dfs.core.windows.net/esios_hourly",
 )
+print(f"silver/esios_hourly total rows: {hourly_df.count()}")

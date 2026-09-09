@@ -11,9 +11,10 @@ from seip.transform.silver_to_gold import run_renewable_penetration_kpi
 
 spark = SparkSession.builder.getOrCreate()
 
-run_renewable_penetration_kpi(
+renewable_df = run_renewable_penetration_kpi(
     spark,
     silver_hourly_path="abfss://silver@seipdatalake.dfs.core.windows.net/esios_hourly",
     redata_silver_path="abfss://silver@seipdatalake.dfs.core.windows.net/redata",
     output_path="abfss://gold@seipdatalake.dfs.core.windows.net/renewable_penetration",
 )
+print(f"gold/renewable_penetration rows: {renewable_df.count()}")

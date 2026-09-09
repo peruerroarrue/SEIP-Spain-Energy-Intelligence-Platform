@@ -19,10 +19,12 @@ jaas_config = (
     f'username="{sasl_username}" password="{sasl_password}";'
 )
 
+bronze_path = "abfss://bronze@seipdatalake.dfs.core.windows.net/esios"
+
 run(
     spark,
     bootstrap_servers="pkc-55q18.switzerlandnorth.azure.confluent.cloud:9092",
-    bronze_path="abfss://bronze@seipdatalake.dfs.core.windows.net/esios",
+    bronze_path=bronze_path,
     checkpoint_path="abfss://bronze@seipdatalake.dfs.core.windows.net/_checkpoints/esios_bronze",
     **{
         "kafka.security.protocol": "SASL_SSL",
@@ -30,3 +32,7 @@ run(
         "kafka.sasl.jaas.config": jaas_config,
     },
 )
+
+# run() already awaited the query's termination - read the table back just
+# for a row count, this task's stream write doesn't report one on its own.
+print(f"bronze/esios total rows: {spark.read.format('delta').load(bronze_path).count()}")

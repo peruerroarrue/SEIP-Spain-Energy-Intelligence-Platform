@@ -10,9 +10,10 @@ from seip.ml.features import run
 
 spark = SparkSession.builder.getOrCreate()
 
-run(
+features_df = run(
     spark,
     silver_hourly_path="abfss://silver@seipdatalake.dfs.core.windows.net/esios_hourly",
     output_path="abfss://gold@seipdatalake.dfs.core.windows.net/ml_features",
     redata_silver_path="abfss://silver@seipdatalake.dfs.core.windows.net/redata",
 )
+print(f"gold/ml_features rows: {features_df.count()}")
