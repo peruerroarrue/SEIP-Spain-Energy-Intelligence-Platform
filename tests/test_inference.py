@@ -10,6 +10,7 @@ def test_build_feature_row_uses_lags_from_latest_row_and_target_calendar():
         "pvpc_lag_1h": 100.0,
         "pvpc_lag_24h": 110.0,
         "pvpc_lag_168h": 120.0,
+        "renewable_share": 0.42,
         "pvpc_eur_mwh": 130.0,  # not a feature, must be ignored
     }
     row = build_feature_row(latest_row, horizon_hours=3)
@@ -17,11 +18,13 @@ def test_build_feature_row_uses_lags_from_latest_row_and_target_calendar():
     assert row["pvpc_lag_1h"] == 100.0
     assert row["pvpc_lag_24h"] == 110.0
     assert row["pvpc_lag_168h"] == 120.0
+    assert row["renewable_share"] == 0.42
     assert "pvpc_eur_mwh" not in row
     assert row == {
         "pvpc_lag_1h": 100.0,
         "pvpc_lag_24h": 110.0,
         "pvpc_lag_168h": 120.0,
+        "renewable_share": 0.42,
         **compute_target_calendar_features(latest_row["hour_utc"], 3),
     }
 
@@ -32,12 +35,13 @@ def test_build_feature_row_differs_by_horizon():
         "pvpc_lag_1h": 100.0,
         "pvpc_lag_24h": 110.0,
         "pvpc_lag_168h": 120.0,
+        "renewable_share": 0.42,
     }
     row_h1 = build_feature_row(latest_row, horizon_hours=1)
     row_h2 = build_feature_row(latest_row, horizon_hours=2)
 
-    # Same lags (they describe the origin, not the target)...
-    for col in ("pvpc_lag_1h", "pvpc_lag_24h", "pvpc_lag_168h"):
+    # Same origin-hour features (they describe the origin, not the target)...
+    for col in ("pvpc_lag_1h", "pvpc_lag_24h", "pvpc_lag_168h", "renewable_share"):
         assert row_h1[col] == row_h2[col]
     # ...but different target-hour calendar features.
     assert row_h1["target_hour_sin"] != row_h2["target_hour_sin"]
