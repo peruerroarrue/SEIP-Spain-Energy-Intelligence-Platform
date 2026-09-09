@@ -22,7 +22,7 @@ from typing import TYPE_CHECKING
 from seip.ml.train import (
     FEATURE_COLUMNS,
     HORIZONS,
-    LAG_FEATURE_COLUMNS,
+    ORIGIN_FEATURE_COLUMNS,
     compute_target_calendar_features,
     registered_model_name,
 )
@@ -39,7 +39,7 @@ def build_feature_row(latest_row: dict, horizon_hours: int) -> dict:
     scored on features computed exactly the same way, not a reimplementation
     that could silently drift out of sync.
     """
-    feature_row = {col: latest_row[col] for col in LAG_FEATURE_COLUMNS}
+    feature_row = {col: latest_row[col] for col in ORIGIN_FEATURE_COLUMNS}
     feature_row.update(compute_target_calendar_features(latest_row["hour_utc"], horizon_hours))
     return feature_row
 

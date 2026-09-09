@@ -34,8 +34,14 @@ if TYPE_CHECKING:
 
 HORIZONS = tuple(range(1, 25))
 LAG_FEATURE_COLUMNS = ("pvpc_lag_1h", "pvpc_lag_24h", "pvpc_lag_168h")
+# Features known at the origin hour (like the lags above), as opposed to
+# TARGET_CALENDAR_COLUMNS below which describe the *target* hour being
+# forecast. renewable_share is the spec's "% renewable generation of the
+# last hour(s)" feature - present in the feature store since features.py,
+# but not wired into training until now (see DECISIONS.md 2026-09-09).
+ORIGIN_FEATURE_COLUMNS = LAG_FEATURE_COLUMNS + ("renewable_share",)
 TARGET_CALENDAR_COLUMNS = ("target_hour_sin", "target_hour_cos", "target_dow_sin", "target_dow_cos", "target_month")
-FEATURE_COLUMNS = LAG_FEATURE_COLUMNS + TARGET_CALENDAR_COLUMNS
+FEATURE_COLUMNS = ORIGIN_FEATURE_COLUMNS + TARGET_CALENDAR_COLUMNS
 TARGET_COLUMN = "target_pvpc_eur_mwh"
 BASELINE_COLUMN = "pvpc_lag_24h"  # naive persistence: same hour, 1 day earlier
 
@@ -125,7 +131,7 @@ def build_horizon_training_set(features_df: "DataFrame", horizon_hours: int) -> 
 
     return joined.select(
         "hour_utc",
-        *LAG_FEATURE_COLUMNS,
+        *ORIGIN_FEATURE_COLUMNS,
         F.sin(hour_angle).alias("target_hour_sin"),
         F.cos(hour_angle).alias("target_hour_cos"),
         F.sin(dow_angle).alias("target_dow_sin"),
