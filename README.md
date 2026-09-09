@@ -47,6 +47,7 @@ src/seip/
 tests/                 # tests unitarios — lógica de negocio pura, sin SparkSession, corren en <1s
 scripts/                # smoke tests manuales contra sistemas reales (no en la suite de pytest)
 databricks_jobs/       # los 10 scripts que corren como tareas de los 2 Jobs de Databricks
+databricks_manual/     # pasos manuales/bajo demanda (reentrenamiento) — versionados igual, pero fuera de cualquier Job
 ```
 
 ## Pipeline en producción (Databricks Workflows)
