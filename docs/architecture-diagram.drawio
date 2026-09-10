@@ -1,0 +1,71 @@
+<mxfile host="app.diagrams.net" modified="2026-09-10T00:00:00.000Z" agent="Claude Code" version="24.0.0" type="device">
+  <diagram name="Arquitectura SEIP" id="seip-architecture">
+    <mxGraphModel dx="800" dy="600" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="850" pageHeight="1100" math="0" shadow="0">
+      <root>
+        <mxCell id="0" />
+        <mxCell id="1" parent="0" />
+
+        <mxCell id="n1" value="REData API" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#F1EFE8;strokeColor=#5F5E5A;fontColor=#2C2C2A;strokeWidth=1;fontSize=13;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="70" y="40" width="200" height="44" as="geometry" />
+        </mxCell>
+        <mxCell id="n2" value="ESIOS API" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#F1EFE8;strokeColor=#5F5E5A;fontColor=#2C2C2A;strokeWidth=1;fontSize=13;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="370" y="40" width="200" height="44" as="geometry" />
+        </mxCell>
+
+        <mxCell id="n3" value="&lt;b&gt;Ingesta batch&lt;/b&gt;&lt;br&gt;&lt;font style=&quot;font-size:11px&quot;&gt;PySpark, diario&lt;/font&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#E6F1FB;strokeColor=#185FA5;fontColor=#0C447C;strokeWidth=1;fontSize=13;" vertex="1" parent="1">
+          <mxGeometry x="70" y="150" width="200" height="56" as="geometry" />
+        </mxCell>
+        <mxCell id="n4" value="&lt;b&gt;Kafka producer&lt;/b&gt;&lt;br&gt;&lt;font style=&quot;font-size:11px&quot;&gt;run_once, 5-15 min&lt;/font&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#E6F1FB;strokeColor=#185FA5;fontColor=#0C447C;strokeWidth=1;fontSize=13;" vertex="1" parent="1">
+          <mxGeometry x="370" y="150" width="200" height="56" as="geometry" />
+        </mxCell>
+        <mxCell id="n5" value="&lt;b&gt;Confluent Cloud&lt;/b&gt;&lt;br&gt;&lt;font style=&quot;font-size:11px&quot;&gt;Kafka gestionado&lt;/font&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#E6F1FB;strokeColor=#185FA5;fontColor=#0C447C;strokeWidth=1;fontSize=13;" vertex="1" parent="1">
+          <mxGeometry x="370" y="260" width="200" height="56" as="geometry" />
+        </mxCell>
+
+        <mxCell id="n6" value="&lt;b&gt;Databricks (Azure)&lt;/b&gt;&lt;br&gt;&lt;font style=&quot;font-size:11px&quot;&gt;Unity Catalog + Delta Lake&lt;/font&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#E1F5EE;strokeColor=#0F6E56;fontColor=#085041;strokeWidth=1;fontSize=14;verticalAlign=top;align=center;spacingTop=12;arcSize=8;" vertex="1" parent="1">
+          <mxGeometry x="60" y="360" width="560" height="190" as="geometry" />
+        </mxCell>
+
+        <mxCell id="n7" value="&lt;b&gt;Bronze&lt;/b&gt;&lt;br&gt;&lt;font style=&quot;font-size:11px&quot;&gt;JSON crudo&lt;/font&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#9FE1CB;strokeColor=#0F6E56;fontColor=#04342C;strokeWidth=1;fontSize=13;" vertex="1" parent="1">
+          <mxGeometry x="95" y="430" width="150" height="90" as="geometry" />
+        </mxCell>
+        <mxCell id="n8" value="&lt;b&gt;Silver&lt;/b&gt;&lt;br&gt;&lt;font style=&quot;font-size:11px&quot;&gt;Tipado y validado&lt;/font&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#9FE1CB;strokeColor=#0F6E56;fontColor=#04342C;strokeWidth=1;fontSize=13;" vertex="1" parent="1">
+          <mxGeometry x="265" y="430" width="150" height="90" as="geometry" />
+        </mxCell>
+        <mxCell id="n9" value="&lt;b&gt;Gold&lt;/b&gt;&lt;br&gt;&lt;font style=&quot;font-size:11px&quot;&gt;KPIs + features&lt;/font&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#9FE1CB;strokeColor=#0F6E56;fontColor=#04342C;strokeWidth=1;fontSize=13;" vertex="1" parent="1">
+          <mxGeometry x="435" y="430" width="150" height="90" as="geometry" />
+        </mxCell>
+
+        <mxCell id="n10" value="&lt;b&gt;ML — MLflow&lt;/b&gt;&lt;br&gt;&lt;font style=&quot;font-size:11px&quot;&gt;24 modelos, forecast 24h&lt;/font&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#EEEDFE;strokeColor=#534AB7;fontColor=#3C3489;strokeWidth=1;fontSize=13;" vertex="1" parent="1">
+          <mxGeometry x="230" y="620" width="220" height="56" as="geometry" />
+        </mxCell>
+
+        <mxCell id="e1" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;strokeColor=#5F5E5A;strokeWidth=1.5;endArrow=block;endFill=1;endSize=6;exitX=0.5;exitY=1;exitDx=0;exitDy=0;entryX=0.5;entryY=0;entryDx=0;entryDy=0;" edge="1" parent="1" source="n1" target="n3">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e2" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;strokeColor=#5F5E5A;strokeWidth=1.5;endArrow=block;endFill=1;endSize=6;exitX=0.5;exitY=1;exitDx=0;exitDy=0;entryX=0.5;entryY=0;entryDx=0;entryDy=0;" edge="1" parent="1" source="n2" target="n4">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e3" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;strokeColor=#5F5E5A;strokeWidth=1.5;endArrow=block;endFill=1;endSize=6;exitX=0.5;exitY=1;exitDx=0;exitDy=0;entryX=0.5;entryY=0;entryDx=0;entryDy=0;" edge="1" parent="1" source="n4" target="n5">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e4" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;strokeColor=#5F5E5A;strokeWidth=1.5;endArrow=block;endFill=1;endSize=6;exitX=0.5;exitY=1;exitDx=0;exitDy=0;entryX=0.5;entryY=0;entryDx=0;entryDy=0;" edge="1" parent="1" source="n3" target="n7">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e5" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;strokeColor=#5F5E5A;strokeWidth=1.5;endArrow=block;endFill=1;endSize=6;exitX=0.5;exitY=1;exitDx=0;exitDy=0;entryX=0.767;entryY=0;entryDx=0;entryDy=0;" edge="1" parent="1" source="n5" target="n7">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e6" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;strokeColor=#5F5E5A;strokeWidth=1.5;endArrow=block;endFill=1;endSize=6;exitX=1;exitY=0.5;exitDx=0;exitDy=0;entryX=0;entryY=0.5;entryDx=0;entryDy=0;" edge="1" parent="1" source="n7" target="n8">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e7" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;strokeColor=#5F5E5A;strokeWidth=1.5;endArrow=block;endFill=1;endSize=6;exitX=1;exitY=0.5;exitDx=0;exitDy=0;entryX=0;entryY=0.5;entryDx=0;entryDy=0;" edge="1" parent="1" source="n8" target="n9">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e8" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;strokeColor=#5F5E5A;strokeWidth=1.5;endArrow=block;endFill=1;endSize=6;exitX=0.5;exitY=1;exitDx=0;exitDy=0;entryX=0.5;entryY=0;entryDx=0;entryDy=0;" edge="1" parent="1" source="n9" target="n10">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+
+      </root>
+    </mxGraphModel>
+  </diagram>
+</mxfile>
