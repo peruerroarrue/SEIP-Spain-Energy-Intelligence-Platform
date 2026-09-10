@@ -8,6 +8,10 @@ La especificación técnica completa (fuentes de datos, reglas de ingesta ya val
 
 ## Arquitectura
 
+![Diagrama de arquitectura de SEIP](docs/architecture-diagram.svg)
+
+Fuente editable en [docs/architecture-diagram.drawio](docs/architecture-diagram.drawio) (ábrelo en [app.diagrams.net](https://app.diagrams.net)). Versión en texto, para quien esté leyendo esto en terminal:
+
 ```
 REData API ──┐                                            ┌── Gold: KPIs (precio/hora, % renovable,
              ├─► Bronze (Delta) ─► Silver (Delta) ─► ──────┤            PVPC vs SPOT)

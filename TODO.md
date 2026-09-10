@@ -110,4 +110,4 @@ Lista viva de lo que falta por implementar o por verificar contra sistemas reale
 
 - [ ] Memoria
 - [ ] Vídeo demo (máx. 5 min)
-- [ ] Diagrama de arquitectura
+- [x] **Diagrama de arquitectura** (2026-09-10) — `docs/architecture-diagram.drawio` (editable, app.diagrams.net) + `docs/architecture-diagram.svg` (embebido en README). Fuentes → ingesta batch/streaming (Confluent Cloud) → Medallion en Databricks (Bronze/Silver/Gold, Unity Catalog) → ML (MLflow, 24 modelos, forecast 24h). Deliberadamente de alto nivel — Kafka local (solo dev/respaldo) y el detalle de los 2 Jobs orquestados se dejan fuera del diagrama y van en prosa en la memoria
